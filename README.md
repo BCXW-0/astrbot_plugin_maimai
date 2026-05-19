@@ -33,23 +33,7 @@ maimaidxtoken
 
 用于访问水鱼开发者接口，例如 B50、牌子、单曲成绩等。它不是用户个人 Import-Token。
 
-### 2. 用户绑定 Import-Token
-
-用户个人成绩上传需要自己绑定水鱼 Import-Token：
-
-```text
-绑定水鱼 <水鱼token>
-查看水鱼
-解绑水鱼
-```
-
-水鱼 token 获取位置：
-
-```text
-水鱼查分器 → 编辑个人资料 → 成绩上传 token
-```
-
-### 3. 准备静态资源
+### 2. 准备静态资源
 
 曲绘、牌子、Rating 等静态资源体积较大，仓库中不直接包含完整资源包。首次部署或资源缺失时，请下载：
 
@@ -67,7 +51,7 @@ https://cloud.yuzuchan.moe/f/nXt6/Resource.7z
 
 如果后续需要更新静态资源，也按同样方式重新下载 `Resource.7z` 并解压覆盖 `static` 目录；当前插件未提供群聊内「更新静态资源」命令，静态资源请在部署环境中手动更新。
 
-### 4. 初始化谱面标签
+### 3. 初始化谱面标签
 
 锐评 B50 和吃分推荐会用到谱面标签。首次部署后，建议在插件管理 WebUI 的「谱面标签」页执行：
 
@@ -85,12 +69,12 @@ https://cloud.yuzuchan.moe/f/nXt6/Resource.7z
 
 更新过程支持断点续跑；如果不需要锐评和吃分推荐中的谱面标签能力，可以暂时跳过。
 
-### 5. 准备帮助图
+### 4. 准备帮助图
 
 `帮助` / `help` 命令会发送图片：
 
 ```text
-/root/astrbot_runtime/data/plugins/astrbot_plugin_maimai/static/help.png
+/astrbot_plugin_maimai/static/help.png
 ```
 
 建议根据你的 Bot 名称、群规、常用命令、WebUI 地址和实际运营信息，自定义一张 `help.png` 放到插件的 `static` 目录下。
@@ -223,27 +207,11 @@ ginfo <曲名或ID>
 
 ---
 
-## 🧠 谱面标签
-
-谱面标签文件保存到：
-
-```text
-/root/astrbot_runtime/TAGS/maimaidx_chart_tags.json
-```
-
-任务状态保存到：
-
-```text
-/root/astrbot_runtime/TAGS/maimaidx_chart_tags_job.json
-```
-
 标签白名单：
 
 ```text
 交互、纵连、叠键、拍划、错位、拆弹、一笔画、扫键、骗手、耐力、爆发、死镰、定位
 ```
-
-`短纵` 会归一为 `叠键`。
 
 谱面标签不通过群聊命令更新，只能在 WebUI 的「谱面标签」页操作：
 
