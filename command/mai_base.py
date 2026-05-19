@@ -1,5 +1,6 @@
 import random
 import re
+import traceback
 from re import Match
 from PIL import Image
 import astrbot.api.message_components as Comp
@@ -145,6 +146,23 @@ async def update_data_handler(event: AstrMessageEvent, superusers: list = None):
     
     await mai.get_music()
     yield event.plain_result('maimai数据更新完成')
+
+
+async def update_alias_handler(event: AstrMessageEvent, superusers: list = None):
+    """更新别名库"""
+    sender_id = event.get_sender_id()
+    if superusers and str(sender_id) not in superusers:
+        yield event.plain_result('仅允许超级管理员执行此操作')
+        return
+
+    try:
+        await mai.get_music_alias()
+        log.info('手动更新别名库成功')
+        yield event.plain_result('手动更新别名库成功')
+    except Exception as e:
+        log.error(f'手动更新别名库失败: {e}')
+        log.error(traceback.format_exc())
+        yield event.plain_result('手动更新别名库失败')
 
 
 async def maimaidxhelp_handler(event: AstrMessageEvent):

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
-TAGS_DIR = Path("/root/astrbot_runtime/TAGS")
+from ... import static
+
+TAGS_DIR = static
 CHART_TAGS_FILE = TAGS_DIR / "maimaidx_chart_tags.json"
 JOB_STATE_FILE = TAGS_DIR / "maimaidx_chart_tags_job.json"
 

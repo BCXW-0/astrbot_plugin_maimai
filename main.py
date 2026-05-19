@@ -286,6 +286,13 @@ class MaimaiDXPlugin(Star):
         async for result in update_data_handler(event, self.superusers):
             yield result
 
+    @filter.command("更新别名库")
+    async def update_alias(self, event: AstrMessageEvent):
+        """更新别名库"""
+        from .command.mai_base import update_alias_handler
+        async for result in update_alias_handler(event, self.superusers):
+            yield result
+
     @filter.regex(r'^(帮助|help)$')
     async def maimaidxhelp(self, event: AstrMessageEvent):
         """帮助maimaiDX"""
