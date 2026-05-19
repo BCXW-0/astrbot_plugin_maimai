@@ -65,7 +65,27 @@ https://cloud.yuzuchan.moe/f/nXt6/Resource.7z
 
 覆盖后应能看到 `static/mai` 等资源目录。
 
-### 4. 准备帮助图
+如果后续需要更新静态资源，也按同样方式重新下载 `Resource.7z` 并解压覆盖 `static` 目录；当前插件未提供群聊内「更新静态资源」命令，静态资源请在部署环境中手动更新。
+
+### 4. 初始化谱面标签
+
+锐评 B50 和吃分推荐会用到谱面标签。首次部署后，建议在插件管理 WebUI 的「谱面标签」页执行：
+
+```text
+生成基础标签文件
+启动自动更新
+刷新状态
+```
+
+谱面标签数据会保存到：
+
+```text
+/root/astrbot_runtime/TAGS/maimaidx_chart_tags.json
+```
+
+更新过程支持断点续跑；如果不需要锐评和吃分推荐中的谱面标签能力，可以暂时跳过。
+
+### 5. 准备帮助图
 
 `帮助` / `help` 命令会发送图片：
 
@@ -75,7 +95,7 @@ https://cloud.yuzuchan.moe/f/nXt6/Resource.7z
 
 建议根据你的 Bot 名称、群规、常用命令、WebUI 地址和实际运营信息，自定义一张 `help.png` 放到插件的 `static` 目录下。
 
-### 5. 启用插件管理 WebUI
+### 6. 启用插件管理 WebUI
 
 在 AstrBot 插件配置界面中配置：
 
