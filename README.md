@@ -49,7 +49,23 @@ maimaidxtoken
 水鱼查分器 → 编辑个人资料 → 成绩上传 token
 ```
 
-### 3. 准备帮助图
+### 3. 准备静态资源
+
+曲绘、牌子、Rating 等静态资源体积较大，仓库中不直接包含完整资源包。首次部署或资源缺失时，请下载：
+
+```text
+https://cloud.yuzuchan.moe/f/nXt6/Resource.7z
+```
+
+下载后将压缩包内容解压并覆盖插件的 `static` 目录，例如：
+
+```bash
+7z x Resource.7z -y -o/path/to/astrbot_plugin_maimai/static
+```
+
+覆盖后应能看到 `static/mai` 等资源目录。
+
+### 4. 准备帮助图
 
 `帮助` / `help` 命令会发送图片：
 
@@ -59,7 +75,7 @@ maimaidxtoken
 
 建议根据你的 Bot 名称、群规、常用命令、WebUI 地址和实际运营信息，自定义一张 `help.png` 放到插件的 `static` 目录下。
 
-### 4. 启用插件管理 WebUI
+### 5. 启用插件管理 WebUI
 
 在 AstrBot 插件配置界面中配置：
 
