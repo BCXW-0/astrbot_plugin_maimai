@@ -12,7 +12,7 @@ from .libraries.maimaidx_api_data import maiApi
 from .libraries.maimaidx_music import mai
 import sys
 
-@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "0.1.1")
+@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.1.1")
 class MaimaiDXPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
@@ -26,7 +26,7 @@ class MaimaiDXPlugin(Star):
         self.data_file = static / "disabled_groups.json"  # 数据文件路径
         
         # 从插件配置中读取 bot 名称并设置到 __init__.py
-        bot_name = self.config.get("bot_name", "Bot")
+        bot_name = self.config.get("bot_name", "")
         enable_reply = bool(self.config.get("enable_reply", True))
         # 从插件配置中读取开发者 token（优先于 static/config.json），避免将 token 写入仓库文件
         plugin_token = str(self.config.get("maimaidxtoken", "") or "").strip()
@@ -303,16 +303,6 @@ class MaimaiDXPlugin(Star):
         
         from .command.mai_base import maimaidxhelp_handler
         async for result in maimaidxhelp_handler(event):
-            yield result
-
-    @filter.regex(r'^(项目地址maimaiDX|项目地址maimaidx)$')
-    async def maimaidxrepo(self, event: AstrMessageEvent):
-        """项目地址"""
-        group_id = event.message_obj.group_id
-        if group_id and not self._is_group_enabled(str(group_id)):
-            return
-        from .command.mai_base import maimaidxrepo_handler
-        async for result in maimaidxrepo_handler(event):
             yield result
 
     @filter.regex(r'^(今日mai|今日舞萌|今日运势|jrys)$')

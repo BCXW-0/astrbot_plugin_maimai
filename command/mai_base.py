@@ -18,33 +18,53 @@ from .. import static
 from ..libraries.tool import qqhash
 
 
-MAIMAIDX_HELP_TEXT = """舞萌 DX 插件指令帮助
+MAIMAIDX_HELP_TEXT = """舞萌 DX 插件帮助
 
-基础功能：
-帮助 / help：发送 static/help.png 帮助图片
-今日舞萌 / 今日运势 / jrys：查看今日运势与推荐歌曲
-开启舞萌功能 / 关闭舞萌功能：在当前群启用或禁用本插件
+基础：
+帮助 / help：发送帮助图片
+今日mai / 今日舞萌 / 今日运势 / jrys：今日运势与推荐歌曲
+来个<难度>：随机一首指定等级歌曲，如 来个13+
+mai什么：随机推荐歌曲；包含推分语义时会尝试结合 B50 推荐
+
+管理员：
+开启舞萌功能 / 关闭舞萌功能：当前群功能开关
 更新maimai数据：刷新曲库、拟合定数和牌子数据
+更新别名库：刷新查歌使用的曲目别名缓存
+更新定数表：生成或更新等级定数表图片
+更新完成表：生成或更新牌子完成表图片
 
-成绩查询：
-b50 [QQ号或@用户]：查询 Best 50 成绩图
+查歌：
+查歌 <关键词> / search <关键词>：按标题或别名搜索歌曲
+id <歌曲ID>：按 ID 查询歌曲信息
+定数查歌 <定数>：按定数查询
+定数查歌 <下限> <上限> [页数]：按定数范围查询
+bpm查歌 <BPM>：按 BPM 查询
+bpm查歌 <下限> <上限> [页数]：按 BPM 范围查询
+曲师查歌 <曲师> [页数]：按曲师查询
+谱师查歌 <谱师> [页数]：按谱师查询
+
+成绩：
+b50 / B50 / ccb [水鱼用户名或@用户]：查询 Best 50
 info / minfo <曲名或ID>：查询自己的单曲成绩详情
-ginfo <曲名或ID>：查询指定歌曲的全局统计信息
-查看排名 / 我的排名：查询水鱼公开 Rating 排名
+ginfo <曲名或ID>：查询全局谱面统计
+ginfo <绿黄红紫白><曲名或ID>：查询指定难度全局谱面统计
+查看排名 / 查看排行：查询公开 Rating 排名
+我的排名：查询自己在公开 Rating 排名中的位置
 分数线 <难度+歌曲ID> <目标达成率>：计算达成率容错
 <定数>的<达成率>是多少分：计算 Rating
 
-锐评与推荐：
-锐评b50 [风格或补充需求]：结合 B50、拟合定数、谱面标签和人格风格生成锐评
-/吃分推荐 [@用户]：按 B50 擅长标签、B35/B15 最低分、拟合定数和实际定数推荐吃分曲
+表格与进度：
+<等级>定数表：查看等级定数表，如 13+定数表
+<等级>完成表：查看等级完成表，如 13+完成表
+<牌子>完成表：查看牌子完成表，如 祭将完成表
+<牌子>进度：查询牌子进度，如 祭将进度
+<等级><评价>进度：查询等级评价进度，如 13+sss进度
+<定数>分数列表：查看指定定数或等级的成绩列表
+我要在<等级>上<分数>分：查找可提升 Rating 的谱面
 
-歌曲查询：
-查歌 <关键词> / search <关键词>：按标题搜索歌曲
-id <歌曲ID>：按 ID 查询歌曲信息
-定数查歌 <定数>：按定数查询歌曲
-bpm查歌 <BPM>：按 BPM 查询歌曲
-曲师查歌 <曲师名>：按曲师查询歌曲
-谱师查歌 <谱师名>：按谱师查询歌曲
+锐评与推荐：
+锐评b50 [人格或要求]：生成 B50 锐评
+/吃分推荐 [@用户]：按 B50 擅长标签、拟合定数、实际定数和 B35/B15 最低分推荐吃分曲
 
 成绩同步：
 绑定水鱼 <水鱼token>：绑定水鱼 Import-Token
@@ -175,11 +195,6 @@ async def maimaidxhelp_handler(event: AstrMessageEvent):
         return
     
     yield event.chain_result([Comp.Image.fromFileSystem(str(help_image_path))])
-
-
-async def maimaidxrepo_handler(event: AstrMessageEvent):
-    """项目地址maimaiDX"""
-    yield event.plain_result('项目地址：https://github.com/BCXW-0/astrbot_plugin_maimai\n求star，求宣传~')
 
 
 async def mai_today_handler(event: AstrMessageEvent):

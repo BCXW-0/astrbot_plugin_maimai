@@ -210,6 +210,8 @@ __marimo__/
 static/mai/
 static/music_data.json
 static/music_chart.json
+static/music_alias.json
+static/local_music_alias.json
 static/plate_id.json
 static/user_import_tokens.json
 static/arcade_credentials.json
@@ -218,6 +220,4 @@ static/webui_config_overrides.json
 static/group_guess_switch.json
 static/disabled_groups.json
 static/temp_pie.html
-/root/astrbot_runtime/TAGS/
-TAGS/
 *.tmp

@@ -9,7 +9,7 @@ log = logger
 loga = logger
 
 # BOTNAME 变量，会在插件初始化时从配置中读取并更新
-_BOTNAME = "Bot"
+_BOTNAME = ""
 
 # 是否使用“引用回复”（Reply）组件。默认开启，让多数指令更好用；
 # 如不需要，可在 AstrBot 插件配置里关闭。
