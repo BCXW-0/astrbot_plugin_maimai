@@ -207,6 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 # Static resources and runtime data
+data/
 static/mai/
 static/help.png
 static/music_data.json

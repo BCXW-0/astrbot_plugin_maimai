@@ -1,7 +1,9 @@
 import asyncio
+import ipaddress
 import json
 import re
 from pathlib import Path
+from contextlib import suppress
 from typing import Any, Optional
 
 from aiohttp import web
@@ -38,10 +40,13 @@ class RoastPersonaWebUI:
         self.context = context
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
+        self.start_task: asyncio.Task | None = None
         self.assets_dir = Root / "static" / "plugin_webui"
         self.chart_tag_job = ChartTagUpdateJob(context=context, config=self.config)
 
     async def start(self) -> None:
+        if self.runner:
+            return
         app = web.Application(client_max_size=30 * 1024 * 1024)
         app.router.add_get("/", self.index)
         app.router.add_static("/assets", self.assets_dir, show_index=False)
@@ -64,6 +69,12 @@ class RoastPersonaWebUI:
         await self.site.start()
 
     async def stop(self) -> None:
+        await self.chart_tag_job.shutdown()
+        if self.start_task and not self.start_task.done():
+            self.start_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self.start_task
+        self.start_task = None
         if self.runner:
             await self.runner.cleanup()
             self.runner = None
@@ -71,7 +82,11 @@ class RoastPersonaWebUI:
 
     def _check_auth(self, request: web.Request) -> bool:
         if not self.access_token:
-            return True
+            remote = request.remote or ""
+            try:
+                return ipaddress.ip_address(remote).is_loopback
+            except ValueError:
+                return remote in {"localhost", "::1"}
         token = request.query.get("token") or request.headers.get("X-Access-Token", "")
         return token == self.access_token
 
@@ -154,7 +169,14 @@ class RoastPersonaWebUI:
             changed.append(key)
         self._save_config_overrides(overrides)
         self._apply_runtime_config(changed)
-        return web.json_response({"ok": True, "message": f"已保存 {len(changed)} 项配置；部分配置需重启插件后完全生效", "items": changed})
+        restart_fields = {"roast_persona_webui_enabled", "roast_persona_webui_host", "roast_persona_webui_port", "roast_persona_webui_token"}
+        restart_required = any(key in restart_fields for key in changed)
+        message = f"已保存 {len(changed)} 项配置"
+        if restart_required:
+            message += "；WebUI 开关、监听地址、端口或访问 Token 需重启插件后生效"
+        else:
+            message += "；运行期配置已尽量即时生效"
+        return web.json_response({"ok": True, "message": message, "items": changed, "restart_required": restart_required})
 
     async def chart_tags_status(self, request: web.Request) -> web.Response:
         if not self._check_auth(request):
@@ -524,5 +546,15 @@ class RoastPersonaWebUI:
 
 def start_roast_persona_webui(manager: RoastPersonaManager, host: str, port: int, access_token: str, config: dict | None = None, context: Any | None = None) -> RoastPersonaWebUI:
     webui = RoastPersonaWebUI(manager, host, port, access_token, config=config, context=context)
-    asyncio.ensure_future(webui.start())
+    webui.start_task = asyncio.create_task(webui.start())
+
+    def _log_start_result(task: asyncio.Task) -> None:
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            log.info("插件管理 WebUI 启动任务已取消")
+        except Exception as exc:
+            log.error(f"插件管理 WebUI 启动失败: {type(exc).__name__} - {exc}")
+
+    webui.start_task.add_done_callback(_log_start_result)
     return webui

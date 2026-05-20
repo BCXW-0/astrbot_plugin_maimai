@@ -12,7 +12,7 @@ from .libraries.maimaidx_api_data import maiApi
 from .libraries.maimaidx_music import mai
 import sys
 
-@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.1.1")
+@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.1.2")
 class MaimaiDXPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
@@ -88,31 +88,35 @@ class MaimaiDXPlugin(Star):
 
     async def initialize(self):
         """插件初始化，加载数据并设置定时任务"""
+        for step_name, step_func in [
+            ("加载禁用群组列表", self._load_disabled_groups),
+            ("设置配置", self._setup_configuration),
+        ]:
+            try:
+                step_func()
+            except Exception as e:
+                log.error(f'{step_name}失败: {e}')
+                log.error(traceback.format_exc())
+
         try:
-            # 加载禁用群组列表
-            self._load_disabled_groups()
-            
-            # 设置配置
-            self._setup_configuration()
-            
-            # 加载maimai数据
             await self._load_maimai_data()
-            
-            # 加载图片到内存（如果配置了）
-            self._load_images_to_memory()
-            
-            # 执行初始检查
-            self._perform_initial_checks()
-            
-            # 设置定时任务
-            self._setup_schedulers()
-            
-            log.info('maimaiDX插件初始化完成')
-            log.info('命令注册完成，等待用户输入...')
         except Exception as e:
-            log.error(f'插件初始化失败: {e}')
+            log.error(f'maimai数据加载流程出现未捕获异常: {e}')
             log.error(traceback.format_exc())
-            log.warning('初始化失败，但继续加载插件，部分功能可能不可用')
+
+        for step_name, step_func in [
+            ("加载图片到内存", self._load_images_to_memory),
+            ("执行初始检查", self._perform_initial_checks),
+            ("设置定时任务", self._setup_schedulers),
+        ]:
+            try:
+                step_func()
+            except Exception as e:
+                log.error(f'{step_name}失败: {e}')
+                log.error(traceback.format_exc())
+
+        log.info('maimaiDX插件初始化完成')
+        log.info('命令注册完成，等待用户输入...')
 
     def _load_disabled_groups(self):
         """加载禁用群组列表"""
@@ -155,45 +159,82 @@ class MaimaiDXPlugin(Star):
                 host = str(self.config.get('roast_persona_webui_host', '127.0.0.1') or '127.0.0.1')
                 port = int(self.config.get('roast_persona_webui_port', 8796) or 8796)
                 token = str(self.config.get('roast_persona_webui_token', '') or '')
+                if not self._can_start_webui(host, token):
+                    return
                 self.roast_persona_webui = start_roast_persona_webui(self.roast_persona_manager, host, port, token, self.config, self.context)
                 log.info(f'插件管理 WebUI 已开启: http://{host}:{port}/')
             except Exception as e:
                 log.error(f'插件管理 WebUI 启动失败: {e}')
 
+    def _can_start_webui(self, host: str, token: str) -> bool:
+        if token.strip():
+            return True
+        local_hosts = {'127.0.0.1', 'localhost', '::1'}
+        if host.strip().lower() in local_hosts:
+            log.warning('插件管理 WebUI 未设置访问 Token，仅允许本机监听场景使用')
+            return True
+        log.error('插件管理 WebUI 未启动：监听地址非本机时必须配置 roast_persona_webui_token')
+        return False
+
     async def _load_maimai_data(self):
         """负责加载舞萌曲库、别名、牌子和猜歌数据"""
+        music_loaded = False
         try:
             log.info('正在获取maimai所有曲目信息')
             await mai.get_music()
+            music_loaded = bool(hasattr(mai, "total_list") and mai.total_list)
             log.info(f'歌曲数据获取完成，数量: {len(mai.total_list) if hasattr(mai, "total_list") and mai.total_list else 0}')
-            
+        except Exception as e:
+            log.error(f'加载maimai曲库失败: {e}')
+            log.error(traceback.format_exc())
+
+        try:
             log.info('正在获取maimai所有曲目别名信息')
             await mai.get_music_alias()
             log.info(f'别名数据获取完成，数量: {len(mai.total_alias_list) if hasattr(mai, "total_alias_list") and mai.total_alias_list else 0}')
-            
+        except Exception as e:
+            log.error(f'加载maimai别名失败: {e}')
+            log.error(traceback.format_exc())
+
+        try:
             log.info('正在获取maimai牌子数据')
             await mai.get_plate_json()
             log.info('牌子数据获取完成')
-            
+        except Exception as e:
+            log.error(f'加载maimai牌子数据失败: {e}')
+            log.error(traceback.format_exc())
+
+        if not music_loaded:
+            log.warning('maimai曲库未加载，跳过猜歌数据初始化；依赖曲库的命令会提示稍后再试')
+            return
+
+        try:
             log.info('正在初始化猜歌数据')
+            if hasattr(mai, 'hot_music_ids'):
+                mai.hot_music_ids = []
             mai.guess()
             log.info('猜歌数据初始化完成')
-            
-            log.info('maimai数据获取完成')
         except Exception as e:
-            log.error(f'加载maimai数据失败: {e}')
+            log.error(f'初始化猜歌数据失败: {e}')
             log.error(traceback.format_exc())
-            raise
+
+        log.info('maimai数据加载流程结束')
 
     def _load_images_to_memory(self):
         """如果配置了，将图片加载到内存中"""
         if maiApi.config.saveinmem:
-            ScoreBaseImage._load_image()
-            log.info('已将图片保存在内存中')
+            try:
+                ScoreBaseImage._load_image()
+                log.info('已将图片保存在内存中')
+            except Exception as e:
+                log.error(f'加载图片到内存失败: {e}')
+                log.error(traceback.format_exc())
 
     def _perform_initial_checks(self):
         """执行对目录和数据的初始检查"""
         # 检查定数表文件夹
+        ratingdir.mkdir(parents=True, exist_ok=True)
+        platedir.mkdir(parents=True, exist_ok=True)
         if not list(ratingdir.iterdir()):
             log.warning(
                 '注意！注意！检测到定数表文件夹为空！'
@@ -230,7 +271,9 @@ class MaimaiDXPlugin(Star):
         self.scheduler.add_job(
             self._daily_update,
             trigger=CronTrigger(hour=4),
+            id="maimai_daily_update",
             name="maimai_daily_update",
+            replace_existing=True,
             misfire_grace_time=300
         )
 
@@ -238,6 +281,8 @@ class MaimaiDXPlugin(Star):
         """定时任务：每日更新数据"""
         try:
             await mai.get_music()
+            if hasattr(mai, 'hot_music_ids'):
+                mai.hot_music_ids = []
             mai.guess()
             log.info('maimaiDX数据更新完毕')
         except Exception as e:
@@ -659,6 +704,10 @@ class MaimaiDXPlugin(Star):
     async def terminate(self):
         if self.roast_persona_webui:
             await self.roast_persona_webui.stop()
+        try:
+            from .command.mai_guess import cancel_guess_tasks
+            await cancel_guess_tasks()
+        except Exception as e:
+            log.error(f'清理猜歌后台任务失败: {e}')
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
-

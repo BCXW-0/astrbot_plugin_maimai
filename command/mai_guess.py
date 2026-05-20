@@ -1,6 +1,4 @@
 import asyncio
-import base64
-import tempfile
 from textwrap import dedent
 from typing import Any, List
 
@@ -12,6 +10,36 @@ from .. import log
 from ..command.mai_base import convert_message_segment_to_chain
 from ..libraries.maimaidx_music import guess
 from ..libraries.maimaidx_music_info import draw_music_info
+
+
+BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def create_guess_task(coro) -> asyncio.Task:
+    task = asyncio.create_task(coro)
+    BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_finish_guess_task)
+    return task
+
+
+def _finish_guess_task(task: asyncio.Task) -> None:
+    BACKGROUND_TASKS.discard(task)
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        log.error(f'猜歌后台任务异常: {type(exc).__name__} - {exc}')
+
+
+async def cancel_guess_tasks() -> None:
+    guess.Group.clear()
+    if not BACKGROUND_TASKS:
+        return
+    tasks = list(BACKGROUND_TASKS)
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    BACKGROUND_TASKS.clear()
 
 
 async def is_admin(event: AstrMessageEvent) -> bool:
@@ -151,13 +179,8 @@ async def guess_music_handler(event: AstrMessageEvent):
                 # 处理 base64 图片
                 if isinstance(img_data, str) and img_data.startswith('base64://'):
                     try:
-                        # 如果失败，尝试保存为临时文件
                         base64_data = img_data[9:]  # 移除 'base64://' 前缀
-                        img_bytes = base64.b64decode(base64_data)
-                        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-                            temp_file.write(img_bytes)
-                            temp_file_path = temp_file.name
-                        chain.append(Comp.Image.fromFileSystem(temp_file_path))
+                        chain.append(Comp.Image.fromBase64(base64_data))
                     except Exception as e:
                         log.error(f'处理猜歌图片失败: {e}')
                         chain.append(Comp.Plain('[图片加载失败]'))
@@ -207,7 +230,7 @@ async def guess_music_handler(event: AstrMessageEvent):
                 guess.end(gid)
     
     # 启动异步任务
-    asyncio.create_task(send_hints())
+    create_guess_task(send_hints())
 
 
 async def guess_pic_handler(event: AstrMessageEvent):
@@ -246,11 +269,7 @@ async def guess_pic_handler(event: AstrMessageEvent):
     if isinstance(img_data, str) and img_data.startswith('base64://'):
         try:
             base64_data = img_data[9:]  # 移除 'base64://' 前缀
-            img_bytes = base64.b64decode(base64_data)
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-                temp_file.write(img_bytes)
-                temp_file_path = temp_file.name
-            chain.append(Comp.Image.fromFileSystem(temp_file_path))
+            chain.append(Comp.Image.fromBase64(base64_data))
         except Exception as e:
             log.error(f'处理猜曲绘图片失败: {e}')
             chain.append(Comp.Plain('[图片加载失败]'))
@@ -293,7 +312,7 @@ async def guess_pic_handler(event: AstrMessageEvent):
             log.error(traceback.format_exc())
         guess.end(gid)
     
-    asyncio.create_task(send_answer())
+    create_guess_task(send_answer())
 
 
 async def guess_music_solve_handler(event: AstrMessageEvent):
@@ -367,4 +386,3 @@ async def guess_on_off_handler(event: AstrMessageEvent):
         msg = '指令错误，请使用「开启mai猜歌」或「关闭mai猜歌」'
     
     yield event.plain_result(msg)
-

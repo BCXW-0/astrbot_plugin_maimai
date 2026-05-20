@@ -261,18 +261,11 @@ async def score_handler(event: AstrMessageEvent):
             TOUCH       1 / 2.5  / 5
             BREAK       5 / 12.5 / 25 (外加200落)
         ''').strip()
-        import tempfile
         img = text_to_image(msg)
         img_base64 = image_to_base64(img)
-        # image_to_base64 返回 base64 字符串，需要保存为临时文件
         if img_base64.startswith('base64://'):
             img_base64 = img_base64[9:]  # 移除 base64:// 前缀
-        import base64
-        img_data = base64.b64decode(img_base64)
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-            temp_file.write(img_data)
-            temp_file_path = temp_file.name
-        chain = [Comp.Image.fromFileSystem(temp_file_path)]
+        chain = [Comp.Image.fromBase64(img_base64)]
         yield event.chain_result(chain)
     else:
         try:

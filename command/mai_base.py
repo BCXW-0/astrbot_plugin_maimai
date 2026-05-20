@@ -129,15 +129,8 @@ def convert_message_segment_to_chain(msg):
             # 处理图片
             file_data = msg.data.get('file', '')
             if file_data.startswith('base64://'):
-                # base64 图片，需要保存到临时文件
-                import base64
-                import tempfile
                 base64_data = file_data.replace('base64://', '')
-                img_data = base64.b64decode(base64_data)
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
-                temp_file.write(img_data)
-                temp_file.close()
-                return [Comp.Image.fromFileSystem(temp_file.name)]
+                return [Comp.Image.fromBase64(base64_data)]
             elif file_data.startswith('http://') or file_data.startswith('https://'):
                 return [Comp.Image.fromURL(file_data)]
             else:

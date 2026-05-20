@@ -49,7 +49,7 @@
   },
   "roast_persona_webui_token": {
     "description": "插件管理 WebUI 访问 Token",
-    "hint": "访问 WebUI 时使用 ?token=这里的值。为空则不校验，不建议在公网环境留空。",
+    "hint": "访问 WebUI 时使用 ?token=这里的值。监听非本机地址时必须填写；为空时仅允许本机访问。",
     "type": "string",
     "default": ""
   },
@@ -78,4 +78,3 @@
     "default": true
   }
 }
-

@@ -17,6 +17,13 @@ from ..libraries.maimaidx_music import guess, mai
 from ..libraries.maimaidx_music_info import draw_music_info
 
 
+def image_chain_from_text(text: str) -> list[Comp.Image]:
+    img_base64 = image_to_base64(text_to_image(text))
+    if img_base64.startswith('base64://'):
+        img_base64 = img_base64[9:]
+    return [Comp.Image.fromBase64(img_base64)]
+
+
 def song_level(ds1: float, ds2: float) -> List[Tuple[str, str, float, str]]:
     """
     查询定数范围内的乐曲
@@ -98,18 +105,7 @@ async def search_music_handler(event: AstrMessageEvent):
         f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
         '请使用「id xxxxx」查询指定曲目。'
     )
-    img = text_to_image(search_result)
-    img_base64 = image_to_base64(img)
-    import tempfile
-    import base64
-    if img_base64.startswith('base64://'):
-        img_base64 = img_base64[9:]
-    img_data = base64.b64decode(img_base64)
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-        temp_file.write(img_data)
-        temp_file_path = temp_file.name
-    chain = [Comp.Image.fromFileSystem(temp_file_path)]
-    yield event.chain_result(chain)
+    yield event.chain_result(image_chain_from_text(search_result))
 
 
 async def search_base_handler(event: AstrMessageEvent):
@@ -164,18 +160,7 @@ async def search_base_handler(event: AstrMessageEvent):
         f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
         '请使用「id xxxxx」查询指定曲目。'
     )
-    img = text_to_image(search_result)
-    img_base64 = image_to_base64(img)
-    import tempfile
-    import base64
-    if img_base64.startswith('base64://'):
-        img_base64 = img_base64[9:]
-    img_data = base64.b64decode(img_base64)
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-        temp_file.write(img_data)
-        temp_file_path = temp_file.name
-    chain = [Comp.Image.fromFileSystem(temp_file_path)]
-    yield event.chain_result(chain)
+    yield event.chain_result(image_chain_from_text(search_result))
 
 
 async def search_bpm_handler(event: AstrMessageEvent):
@@ -233,18 +218,7 @@ async def search_bpm_handler(event: AstrMessageEvent):
         f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
         '请使用「id xxxxx」查询指定曲目。'
     )
-    img = text_to_image(search_result)
-    img_base64 = image_to_base64(img)
-    import tempfile
-    import base64
-    if img_base64.startswith('base64://'):
-        img_base64 = img_base64[9:]
-    img_data = base64.b64decode(img_base64)
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-        temp_file.write(img_data)
-        temp_file_path = temp_file.name
-    chain = [Comp.Image.fromFileSystem(temp_file_path)]
-    yield event.chain_result(chain)
+    yield event.chain_result(image_chain_from_text(search_result))
 
 
 async def search_artist_handler(event: AstrMessageEvent):
@@ -299,18 +273,7 @@ async def search_artist_handler(event: AstrMessageEvent):
         f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
         '请使用「id xxxxx」查询指定曲目。'
     )
-    img = text_to_image(search_result)
-    img_base64 = image_to_base64(img)
-    import tempfile
-    import base64
-    if img_base64.startswith('base64://'):
-        img_base64 = img_base64[9:]
-    img_data = base64.b64decode(img_base64)
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-        temp_file.write(img_data)
-        temp_file_path = temp_file.name
-    chain = [Comp.Image.fromFileSystem(temp_file_path)]
-    yield event.chain_result(chain)
+    yield event.chain_result(image_chain_from_text(search_result))
 
 
 async def search_charter_handler(event: AstrMessageEvent):
@@ -372,18 +335,7 @@ async def search_charter_handler(event: AstrMessageEvent):
         f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
         '请使用「id xxxxx」查询指定曲目。'
     )
-    img = text_to_image(search_result)
-    img_base64 = image_to_base64(img)
-    import tempfile
-    import base64
-    if img_base64.startswith('base64://'):
-        img_base64 = img_base64[9:]
-    img_data = base64.b64decode(img_base64)
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-        temp_file.write(img_data)
-        temp_file_path = temp_file.name
-    chain = [Comp.Image.fromFileSystem(temp_file_path)]
-    yield event.chain_result(chain)
+    yield event.chain_result(image_chain_from_text(search_result))
 
 
 async def query_chart_handler(event: AstrMessageEvent):

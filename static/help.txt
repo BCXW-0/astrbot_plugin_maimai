@@ -61,4 +61,5 @@ ginfo <绿黄红紫白><曲名或ID>：查询指定难度全局谱面统计
 提示：
 帮助图片路径：static/help.png
 曲目标签路径：static/maimaidx_chart_tags.json
+WebUI 如需外部访问，必须配置 roast_persona_webui_token；未配置 Token 时仅建议本机访问。
 建议根据 Bot 名称、群规、常用命令和 WebUI 地址自定义 help.png。

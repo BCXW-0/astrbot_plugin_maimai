@@ -104,7 +104,7 @@ python -m playwright install chromium
 | `roast_persona_webui_enabled` | `false` | 是否启用插件 WebUI |
 | `roast_persona_webui_host` | `127.0.0.1` | WebUI 监听地址 |
 | `roast_persona_webui_port` | `8796` | WebUI 监听端口 |
-| `roast_persona_webui_token` | 空 | WebUI 访问 Token |
+| `roast_persona_webui_token` | 空 | WebUI 访问 Token；监听非本机地址时必填 |
 | `sgid_max_age_seconds` | `180` | SGWCMAID 有效窗口，单位秒 |
 | `request_timeout_seconds` | `30` | 成绩同步网络请求超时时间 |
 | `maimai_http_proxy` | 空 | 成绩同步访问官方数据源时使用的 HTTP 代理 |
@@ -215,7 +215,7 @@ roast_persona_webui_token
 http://127.0.0.1:8796/?token=你的token
 ```
 
-如果 WebUI 对外网开放，务必配置 `roast_persona_webui_token`。
+如果 WebUI 监听 `0.0.0.0`、公网 IP 或其他非本机地址，必须配置 `roast_persona_webui_token`，否则插件会拒绝启动 WebUI。未配置 Token 时仅建议保持默认 `127.0.0.1` 本机访问。
 
 ---
 
@@ -286,7 +286,7 @@ http://127.0.0.1:8796/?token=你的token
 
 - `maimaidxtoken` 请通过 AstrBot 插件配置或 WebUI 配置，不要写死在代码中。
 - 用户个人 Import-Token 和机台凭据属于敏感数据，不要上传到公开仓库。
-- WebUI 如果监听 `0.0.0.0` 或暴露到公网，务必设置访问 Token。
+- WebUI 如果监听 `0.0.0.0`、公网 IP 或其他非本机地址，必须设置访问 Token；未配置 Token 时只允许本机访问。
 - SGWCMAID 是短时效识别码，插件会尝试撤回包含 SGWCMAID 的消息；如果撤回失败，请提醒用户手动撤回。
 
 ---

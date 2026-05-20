@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from typing import Any
@@ -79,6 +80,18 @@ class ChartTagUpdateJob:
         state.update({"running": False, "stopped_at": now_text(), "message": "已请求停止，当前谱面处理完成后停止"})
         write_job_state(state)
         return {"ok": True, "message": "已请求停止谱面标签更新任务", **self.status()}
+
+    async def shutdown(self) -> None:
+        self.stop_requested = True
+        task = self.task
+        if task and not task.done():
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+        self.task = None
+        state = read_job_state()
+        state.update({"running": False, "stopped_at": now_text(), "message": "谱面标签更新任务已随插件停止"})
+        write_job_state(state)
 
     async def _run(self, batch_size: int, interval_seconds: int) -> None:
         try:
