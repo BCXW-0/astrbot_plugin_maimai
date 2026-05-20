@@ -208,6 +208,7 @@ __marimo__/
 
 # Static resources and runtime data
 static/mai/
+static/help.png
 static/music_data.json
 static/music_chart.json
 static/music_alias.json
@@ -217,7 +218,7 @@ static/user_import_tokens.json
 static/arcade_credentials.json
 static/roast_personas.json
 static/webui_config_overrides.json
-static/group_guess_switch.json
 static/disabled_groups.json
+static/group_guess_switch.json
 static/temp_pie.html
 *.tmp
