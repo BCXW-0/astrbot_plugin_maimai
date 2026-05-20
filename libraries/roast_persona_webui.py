@@ -92,8 +92,84 @@ class RoastPersonaWebUI:
 
     async def index(self, request: web.Request) -> web.Response:
         if not self._check_auth(request):
-            return web.Response(status=403, text="Forbidden")
+            return self._auth_prompt_response(request)
         return web.FileResponse(self.assets_dir / "index.html")
+
+    def _auth_prompt_response(self, request: web.Request) -> web.Response:
+        invalid_token = bool(request.query.get("token"))
+        if self.access_token:
+            error_html = (
+                '<p class="error">Token 不正确，请检查大小写、前后空格或重新从插件配置复制。</p>'
+                if invalid_token
+                else ""
+            )
+            body = f"""
+            <h1>需要访问 Token</h1>
+            <p>请输入插件配置项 <code>roast_persona_webui_token</code> 的值。</p>
+            {error_html}
+            <form id="authForm">
+              <input id="tokenInput" type="password" autocomplete="current-password" placeholder="WebUI Token" autofocus>
+              <button type="submit">进入 WebUI</button>
+            </form>
+            <p class="hint">也可以直接访问 <code>?token=你的Token</code>。</p>
+            """
+            script = """
+            <script>
+            document.getElementById('authForm').addEventListener('submit', event => {
+              event.preventDefault();
+              const token = document.getElementById('tokenInput').value.trim();
+              if (!token) return;
+              const url = new URL(window.location.href);
+              url.searchParams.set('token', token);
+              window.location.replace(url.pathname + url.search + url.hash);
+            });
+            </script>
+            """
+        else:
+            body = """
+            <h1>仅允许本机访问</h1>
+            <p>当前 WebUI 未配置访问 Token，只允许从本机地址访问。</p>
+            <p class="hint">如果需要公网或 NAT 访问，请先配置 <code>roast_persona_webui_token</code> 并重载插件。</p>
+            """
+            script = ""
+
+        html = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>舞萌 DX WebUI 认证</title>
+<style>
+:root {{ color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f7fb; color: #20242c; }}
+main {{ width: min(440px, calc(100vw - 32px)); box-sizing: border-box; padding: 28px; border: 1px solid #d9deea; border-radius: 8px; background: #fff; box-shadow: 0 20px 48px rgba(32, 36, 44, .12); }}
+h1 {{ margin: 0 0 12px; font-size: 24px; line-height: 1.25; }}
+p {{ margin: 0 0 16px; line-height: 1.7; }}
+code {{ padding: 2px 5px; border-radius: 4px; background: #eef1f7; }}
+form {{ display: grid; gap: 12px; margin-top: 18px; }}
+input {{ height: 42px; padding: 0 12px; border: 1px solid #c8cfdd; border-radius: 6px; font-size: 15px; }}
+button {{ height: 42px; border: 0; border-radius: 6px; background: #3457d5; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }}
+button:hover {{ background: #2447c4; }}
+.error {{ padding: 10px 12px; border-radius: 6px; background: #fff0f0; color: #b42318; }}
+.hint {{ margin-top: 16px; color: #687083; font-size: 13px; }}
+@media (prefers-color-scheme: dark) {{
+  body {{ background: #15171c; color: #eef1f7; }}
+  main {{ background: #1f232b; border-color: #333946; box-shadow: none; }}
+  code {{ background: #303644; }}
+  input {{ background: #15171c; border-color: #454c5c; color: #eef1f7; }}
+  .hint {{ color: #aab2c2; }}
+  .error {{ background: #3a2022; color: #ffb4ad; }}
+}}
+</style>
+</head>
+<body>
+<main>
+{body}
+</main>
+{script}
+</body>
+</html>"""
+        return web.Response(text=html, content_type="text/html")
 
     async def overview(self, request: web.Request) -> web.Response:
         if not self._check_auth(request):
