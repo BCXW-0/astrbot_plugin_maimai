@@ -36,6 +36,7 @@
 - 移除别名提交、别名投票、别名推送和机厅排卡相关功能。
 - 恢复 Bot 超级管理员命令 `更新别名库`。
 - 增加用户水鱼 Import-Token 绑定、SGWCMAID 成绩同步、锐评人格 WebUI、谱面标签和吃分推荐。
+- `1.3.0` 修复纯净环境按 `requirements.txt` 安装后可能缺少定时任务依赖，导致插件导入失败的问题。
 - `1.2.2` 优化吃分推荐推送逻辑：合并推荐理由和曲目信息图，补充 B50 倾向标签，并从排序后的前最多 10 个候选谱面中随机推荐。
 - 曲目标签 JSON 固定保存在 `static/maimaidx_chart_tags.json`，任务状态固定保存在 `static/maimaidx_chart_tags_job.json`。
 - 纯净仓库不包含完整 `static/mai/` 静态资源包。
