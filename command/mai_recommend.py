@@ -16,6 +16,9 @@ from ..libraries.maimaidx_music_info import draw_music_info
 
 QUERY_B50_TIMEOUT_SECONDS = 20
 SSSP_RATING_FACTOR = 22.512
+RECOMMEND_RATING_LOW_DIVISOR = 1130
+RECOMMEND_RATING_HIGH_DIVISOR = 1075
+RECOMMEND_MAX_DS = 15.0
 RECOMMEND_LEVEL_INDEXES = (2, 3, 4)
 RECOMMEND_CONCURRENCY_LIMIT = 2
 _RECOMMEND_SEMAPHORE = asyncio.Semaphore(RECOMMEND_CONCURRENCY_LIMIT)
@@ -52,9 +55,15 @@ def _current_rating(user: Any, b35: list[Any], b15: list[Any]) -> int:
 
 
 def _rating_range(rating: int) -> tuple[float, float]:
-    low = rating / 1130
-    high = rating / 1075
-    return (low, high) if low <= high else (high, low)
+    low = rating / RECOMMEND_RATING_LOW_DIVISOR
+    high = min(rating / RECOMMEND_RATING_HIGH_DIVISOR, RECOMMEND_MAX_DS)
+    return min(low, high), high
+
+
+def _floor_ds_min(floor_ra: int) -> float:
+    if floor_ra <= 0:
+        return 0.0
+    return (floor_ra + 1) / SSSP_RATING_FACTOR
 
 
 def _bucket_floor(charts: list[Any], full_size: int) -> tuple[int, bool]:
@@ -86,9 +95,11 @@ def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
     if rating <= 0:
         return [], {"rating": rating}
 
-    ds_min, ds_max = _rating_range(rating)
+    base_ds_min, ds_max = _rating_range(rating)
     b35_floor, b35_full = _bucket_floor(b35, 35)
     b15_floor, b15_full = _bucket_floor(b15, 15)
+    b35_ds_min = max(base_ds_min, _floor_ds_min(b35_floor))
+    b15_ds_min = max(base_ds_min, _floor_ds_min(b15_floor))
     b35_keys = {_chart_key(chart) for chart in b35}
     b15_keys = {_chart_key(chart) for chart in b15}
     sssp_b50_keys = {_chart_key(chart) for chart in [*b35, *b15] if _is_sssp_in_b50(chart)}
@@ -101,16 +112,17 @@ def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
             if level_index >= len(music.ds) or level_index >= len(music.charts):
                 continue
             ds = float(music.ds[level_index])
-
-            # 1. 先用当前 Rating 推导出的定数区间筛掉不可能的谱面。
-            if not ds_min <= ds <= ds_max:
-                continue
-
             key = (str(music.id), level_index)
 
             bucket = "B15" if key in b15_keys or (key not in b35_keys and music.basic_info.is_new) else "B35"
             floor = b15_floor if bucket == "B15" else b35_floor
             bucket_full = b15_full if bucket == "B15" else b35_full
+            ds_min = b15_ds_min if bucket == "B15" else b35_ds_min
+
+            # 1. 先用当前 Rating 和对应 B35/B15 地板推导出的定数区间筛掉不可能的谱面。
+            if not ds_min <= ds <= ds_max:
+                continue
+
             sssp_ra = _sssp_rating(ds)
 
             # 2. 只有 SSS+ 理论单曲 Rating 能超过对应 B35/B15 地板时才继续。
@@ -136,6 +148,8 @@ def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
                 "bucket": bucket,
                 "floor_ra": floor,
                 "bucket_full": bucket_full,
+                "ds_min": ds_min,
+                "ds_max": ds_max,
                 "sssp_ra": sssp_ra,
                 "entry_margin": sssp_ra - floor,
             }
@@ -144,8 +158,10 @@ def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
     result.sort(key=_sort_key)
     meta = {
         "rating": rating,
-        "ds_min": ds_min,
+        "base_ds_min": base_ds_min,
         "ds_max": ds_max,
+        "b35_ds_min": b35_ds_min,
+        "b15_ds_min": b15_ds_min,
         "b35_floor": b35_floor,
         "b15_floor": b15_floor,
         "b35_full": b35_full,
@@ -198,7 +214,8 @@ async def score_recommend_handler(event: AstrMessageEvent):
             yield event.plain_result(
                 f'暂时没有找到符合条件的吃分候选谱面\n'
                 f'当前 Rating：{meta["rating"]}\n'
-                f'推荐定数区间：{meta["ds_min"]:.2f} - {meta["ds_max"]:.2f}\n'
+                f'B35 推荐定数区间：{meta["b35_ds_min"]:.2f} - {meta["ds_max"]:.2f}\n'
+                f'B15 推荐定数区间：{meta["b15_ds_min"]:.2f} - {meta["ds_max"]:.2f}\n'
                 f'B35 地板：{meta["b35_floor"]}，B15 地板：{meta["b15_floor"]}'
             )
             return
@@ -217,12 +234,12 @@ async def score_recommend_handler(event: AstrMessageEvent):
             floor_text += '（分区未满）'
         reason = (
             f'推荐吃分：{candidate["title"]} [{candidate["level"]} / {candidate["ds"]}]\n'
-            f'当前 Rating：{meta["rating"]}，推荐定数区间：{meta["ds_min"]:.2f} - {meta["ds_max"]:.2f}\n'
+            f'当前 Rating：{meta["rating"]}，推荐定数区间：{candidate["ds_min"]:.2f} - {candidate["ds_max"]:.2f}\n'
             f'推荐分区：{candidate["bucket"]}，{floor_text}\n'
             f'SSS+ 理论单曲 Rating：{candidate["sssp_ra"]}（高出地板 {candidate["entry_margin"]}）\n'
             f'拟合定数：{fit_text}，实际定数：{candidate["ds"]}，拟合-实际：{fit_delta_text}\n'
             f'谱面标签：{tags_text}\n'
-            f'筛选：定数区间通过、SSS+ 理论分高于对应地板，且该谱面未以 SSS+ 出现在 B50 中。'
+            f'筛选：定数区间通过（下限不低于对应地板，上限不超过 {RECOMMEND_MAX_DS:.1f}）、SSS+ 理论分高于对应地板，且该谱面未以 SSS+ 出现在 B50 中。'
         )
         yield event.plain_result(reason)
         try:
