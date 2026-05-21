@@ -51,12 +51,13 @@ TAG_KEYWORD_RULES = [
     ("爆发", [r"爆发", r"爆發", r"发狂", r"發狂", r"尾杀", r"尾殺", r"瞬间密度", r"瞬間密度", r"局部高密度", r"局所高密度", r"高密度地帯"]),
     ("底力", [r"底力", r"综合力", r"綜合力", r"総合力", r"高物量", r"物量譜面", r"物量", r"高ノーツ", r"高総数", r"耐力", r"持久力", r"体力", r"體力", r"硬抗", r"硬扛", r"休息少", r"持续高密度", r"持續高密度"]),
     ("交互", [r"交互", r"trill", r"トリル"]),
+    ("定拍", [r"定拍", r"正拍", r"等拍", r"均等拍", r"オンビート", r"on\s*beat"]),
     ("一笔划", [r"一笔划", r"一笔画", r"一筆画", r"一筆書き"]),
     ("双押", [r"双押", r"雙押", r"双押海", r"同押", r"同時押し", r"大位移双押"]),
     ("扫键", [r"扫键", r"掃鍵", r"扫圈", r"掃圈", r"转圈", r"轉圈", r"回转", r"回転", r"旋转", r"旋轉", r"流し", r"回転配置", r"半回転"]),
     ("死镰", [r"死镰", r"死鎌", r"镰刀", r"鎌刀"]),
     ("错位", [r"错位", r"错拍", r"对拍", r"對拍", r"伪对拍", r"不匀速", r"不均匀", r"拍划", r"拍画", r"一拍划", r"一拍画", r"\d+\s*分划", r"\d+\s*分\s*slide"]),
-    ("手速", [r"手速", r"键密度", r"鍵密度", r"高\s*bpm", r"高速\s*bpm", r"bpm\s*(2[4-9]\d|[3-9]\d\d)", r"(240|250|260|270|280|290|300)\s*bpm", r"24分", r"32分", r"64分", r"素早い動き", r"高速の", r"高密度"]),
+    ("手速", [r"手速", r"键密度", r"鍵密度", r"高速配置", r"高\s*bpm", r"高速\s*bpm", r"bpm\s*(2[4-9]\d|[3-9]\d\d)", r"(240|25\d|26\d|27\d|28\d|29\d|[3-9]\d\d)\s*bpm", r"(2[4-9]\d|[3-9]\d\d)\s*bpm", r"(2[4-9]\d|[3-9]\d\d)\s*BPM", r"(2[4-9]\d|[3-9]\d\d)\s*以上.*bpm", r"(2[4-9]\d|[3-9]\d\d)\s*\\+", r"(2[4-9]|[3-9]\d|[1-9]\d{2,})\s*分\s*交互", r"24分", r"32分", r"64分", r"素早い動き", r"高速の", r"高密度"]),
     ("纵连", [r"长纵", r"長縦", r"長纵", r"长縦", r"纵连", r"縦連", r"縱連", r"竖连", r"竪連", r"微縦連"]),
     ("子弹", [r"子弹", r"短纵", r"短縦", r"短い縦連", r"叠键", r"叠押", r"2\s*连纵", r"3\s*连纵", r"二连纵", r"三连纵"]),
     ("跳拍", [r"跳拍", r"跳\s*拍", r"跳节奏", r"跳節奏", r"リズム\s*飛び", r"拍が飛ぶ"]),
@@ -295,6 +296,8 @@ class ChartTagUpdateJob:
                 merged[field] = updated[field]
         manual_tags = filter_allowed_tags(current.get("manual_tags", []))
         llm_tags = filter_allowed_tags(updated.get("llm_tags", []))
+        if not llm_tags and updated.get("tag_status") in {"no_evidence", "failed"}:
+            llm_tags = filter_allowed_tags(current.get("llm_tags") or current.get("final_tags") or current.get("tags") or [])
         final_tags = filter_allowed_tags([*llm_tags, *manual_tags])
         merged["manual_tags"] = manual_tags
         merged["llm_tags"] = llm_tags
@@ -1308,6 +1311,8 @@ class ChartTagUpdateJob:
         return filter_allowed_tags(tags if isinstance(tags, list) else [])
 
     def _is_done(self, chart: dict[str, Any]) -> bool:
+        if int(chart.get("tag_rule_version", 0) or 0) < TAG_RULE_VERSION:
+            return False
         if self._valid_tags(chart):
             return True
         if chart.get("tag_status") == "no_evidence" and int(chart.get("tag_rule_version", 0) or 0) >= TAG_RULE_VERSION:
