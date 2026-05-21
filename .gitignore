@@ -222,4 +222,5 @@ static/webui_config_overrides.json
 static/disabled_groups.json
 static/group_guess_switch.json
 static/temp_pie.html
+!static/maimaidx_chart_tags.json
 *.tmp

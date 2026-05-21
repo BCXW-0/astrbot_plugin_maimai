@@ -52,8 +52,8 @@ def _current_rating(user: Any, b35: list[Any], b15: list[Any]) -> int:
 
 
 def _rating_range(rating: int) -> tuple[float, float]:
-    low = rating / 1100
-    high = rating / 1050
+    low = rating / 1130
+    high = rating / 1075
     return (low, high) if low <= high else (high, low)
 
 
@@ -72,6 +72,7 @@ def _is_sssp_in_b50(chart: Any) -> bool:
 def _sort_key(candidate: dict[str, Any]) -> tuple[bool, float, int, str]:
     fit_delta = candidate.get("fit_delta")
     return (
+        float(candidate["ds"]),
         fit_delta is None,
         float(fit_delta) if fit_delta is not None else 999,
         -int(candidate["sssp_ra"]),
