@@ -1,63 +1,31 @@
 from __future__ import annotations
 
+import asyncio
 import math
-from collections import Counter
 from typing import Any
 
 from astrbot.api.event import AstrMessageEvent
 
+from .. import log
 from ..command.mai_base import convert_message_segment_to_chain, extract_at_qqid
-from ..libraries.chart_tags.constants import MIN_TAG_DS
 from ..libraries.chart_tags.lookup import get_chart_tags
 from ..libraries.maimaidx_api_data import maiApi
 from ..libraries.maimaidx_error import UserDisabledQueryError, UserNotExistsError, UserNotFoundError
 from ..libraries.maimaidx_music import mai
 from ..libraries.maimaidx_music_info import draw_music_info
 
-
-def _score(ds: float, achievements: float) -> int:
-    value = min(float(achievements), 100.5)
-    if value >= 100.5:
-        coefficient = 0.224
-    elif value >= 100:
-        coefficient = 0.216
-    elif value >= 99.5:
-        coefficient = 0.211
-    elif value >= 99:
-        coefficient = 0.208
-    elif value >= 98:
-        coefficient = 0.203
-    elif value >= 97:
-        coefficient = 0.2
-    elif value >= 94:
-        coefficient = 0.168
-    elif value >= 90:
-        coefficient = 0.152
-    elif value >= 80:
-        coefficient = 0.136
-    elif value >= 75:
-        coefficient = 0.128
-    elif value >= 70:
-        coefficient = 0.112
-    elif value >= 60:
-        coefficient = 0.096
-    elif value >= 50:
-        coefficient = 0.08
-    elif value >= 40:
-        coefficient = 0.064
-    elif value >= 30:
-        coefficient = 0.048
-    elif value >= 20:
-        coefficient = 0.032
-    elif value >= 10:
-        coefficient = 0.016
-    else:
-        coefficient = 0
-    return math.floor(float(ds) * value * coefficient)
+QUERY_B50_TIMEOUT_SECONDS = 20
+SSSP_RATING_FACTOR = 22.512
+RECOMMEND_LEVEL_INDEXES = (2, 3, 4)
+RECOMMEND_CONCURRENCY_LIMIT = 2
+_RECOMMEND_SEMAPHORE = asyncio.Semaphore(RECOMMEND_CONCURRENCY_LIMIT)
 
 
-def _fit_diff(song_id: Any, level_index: int) -> float | None:
-    music = mai.total_list.by_id(str(song_id))
+def _sssp_rating(ds: float) -> int:
+    return math.floor(float(ds) * SSSP_RATING_FACTOR)
+
+
+def _fit_diff(music: Any, level_index: int) -> float | None:
     if not music or not music.stats or level_index >= len(music.stats):
         return None
     stats = music.stats[level_index]
@@ -66,53 +34,94 @@ def _fit_diff(song_id: Any, level_index: int) -> float | None:
 
 
 def _buckets(user: Any) -> tuple[list[Any], list[Any]]:
-    b35 = list((user.charts.sd or [])[:35]) if user.charts else []
-    b15 = list((user.charts.dx or [])[:15]) if user.charts else []
+    charts = getattr(user, "charts", None)
+    b35 = list((getattr(charts, "sd", None) or [])[:35]) if charts else []
+    b15 = list((getattr(charts, "dx", None) or [])[:15]) if charts else []
     return b35, b15
 
 
-def _best_tags(charts: list[Any]) -> list[str]:
-    counter = Counter()
-    for chart in charts:
-        tags = get_chart_tags(chart.song_id, chart.level_index)
-        for tag in tags:
-            counter[tag] += max(1, int(chart.ra or 0) // 100)
-    return [tag for tag, _ in counter.most_common(5)]
+def _chart_key(chart: Any) -> tuple[str, int]:
+    return str(chart.song_id), int(chart.level_index)
 
 
-def _candidate_score(candidate: dict[str, Any], preferred_tags: list[str], floor_ra: int, bucket: str) -> float:
-    tags = set(candidate["tags"])
-    tag_hit = len(tags & set(preferred_tags))
-    fit = candidate.get("fit_diff") or candidate["ds"]
-    fit_delta = float(fit) - float(candidate["ds"])
-    target = max(floor_ra + 1, 1)
-    need_100 = _score(candidate["ds"], 100.0)
-    need_1005 = _score(candidate["ds"], 100.5)
-    reachable = 1.0 if need_1005 >= target else 0.0
-    near = max(0.0, 1 - abs(need_100 - target) / 80)
-    bucket_bonus = 0.25 if bucket == "B15" and candidate.get("is_new") else 0
-    return tag_hit * 5 + fit_delta * 3 + near * 2 + reachable + bucket_bonus
+def _current_rating(user: Any, b35: list[Any], b15: list[Any]) -> int:
+    rating = int(getattr(user, "rating", 0) or 0)
+    if rating > 0:
+        return rating
+    return sum(int(getattr(chart, "ra", 0) or 0) for chart in [*b35, *b15])
 
 
-def _collect_candidates(user: Any, preferred_tags: list[str], b35_floor: int, b15_floor: int) -> list[dict[str, Any]]:
-    owned = {(str(chart.song_id), int(chart.level_index)) for chart in [*(user.charts.sd or []), *(user.charts.dx or [])]}
+def _rating_range(rating: int) -> tuple[float, float]:
+    low = rating / 1100
+    high = rating / 1050
+    return (low, high) if low <= high else (high, low)
+
+
+def _bucket_floor(charts: list[Any], full_size: int) -> tuple[int, bool]:
+    ratings = [int(getattr(chart, "ra", 0) or 0) for chart in charts]
+    floor = min((rating for rating in ratings if rating > 0), default=0)
+    return floor, len(charts) >= full_size
+
+
+def _is_sssp_in_b50(chart: Any) -> bool:
+    rate = str(getattr(chart, "rate", "") or "").lower()
+    achievements = float(getattr(chart, "achievements", 0) or 0)
+    return rate in {"sssp", "sss+"} or achievements >= 100.5
+
+
+def _sort_key(candidate: dict[str, Any]) -> tuple[bool, float, int, str]:
+    fit_delta = candidate.get("fit_delta")
+    return (
+        fit_delta is None,
+        float(fit_delta) if fit_delta is not None else 999,
+        -int(candidate["sssp_ra"]),
+        str(candidate["title"]),
+    )
+
+
+def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    b35, b15 = _buckets(user)
+    rating = _current_rating(user, b35, b15)
+    if rating <= 0:
+        return [], {"rating": rating}
+
+    ds_min, ds_max = _rating_range(rating)
+    b35_floor, b35_full = _bucket_floor(b35, 35)
+    b15_floor, b15_full = _bucket_floor(b15, 15)
+    b35_keys = {_chart_key(chart) for chart in b35}
+    b15_keys = {_chart_key(chart) for chart in b15}
+    sssp_b50_keys = {_chart_key(chart) for chart in [*b35, *b15] if _is_sssp_in_b50(chart)}
     result = []
+
     for music in mai.total_list:
         if int(music.id) >= 100000:
             continue
-        for level_index in [2, 3, 4]:
+        for level_index in RECOMMEND_LEVEL_INDEXES:
             if level_index >= len(music.ds) or level_index >= len(music.charts):
                 continue
             ds = float(music.ds[level_index])
-            if ds < MIN_TAG_DS:
+
+            # 1. 先用当前 Rating 推导出的定数区间筛掉不可能的谱面。
+            if not ds_min <= ds <= ds_max:
                 continue
+
             key = (str(music.id), level_index)
-            if key in owned:
+
+            bucket = "B15" if key in b15_keys or (key not in b35_keys and music.basic_info.is_new) else "B35"
+            floor = b15_floor if bucket == "B15" else b35_floor
+            bucket_full = b15_full if bucket == "B15" else b35_full
+            sssp_ra = _sssp_rating(ds)
+
+            # 2. 只有 SSS+ 理论单曲 Rating 能超过对应 B35/B15 地板时才继续。
+            if floor > 0 and sssp_ra <= floor:
                 continue
-            tags = get_chart_tags(music.id, level_index)
-            if preferred_tags and not set(tags) & set(preferred_tags):
+
+            # 4. 已经以 SSS+ 出现在 B50 中的谱面不再推荐。
+            if key in sssp_b50_keys:
                 continue
-            fit = _fit_diff(music.id, level_index)
+
+            fit = _fit_diff(music, level_index)
+            fit_delta = float(fit) - ds if fit is not None else None
             candidate = {
                 "music": music,
                 "song_id": str(music.id),
@@ -121,64 +130,104 @@ def _collect_candidates(user: Any, preferred_tags: list[str], b35_floor: int, b1
                 "level": music.level[level_index],
                 "ds": ds,
                 "fit_diff": fit,
-                "tags": tags,
+                "fit_delta": fit_delta,
                 "is_new": bool(music.basic_info.is_new),
+                "bucket": bucket,
+                "floor_ra": floor,
+                "bucket_full": bucket_full,
+                "sssp_ra": sssp_ra,
+                "entry_margin": sssp_ra - floor,
             }
-            bucket = "B15" if candidate["is_new"] else "B35"
-            floor = b15_floor if bucket == "B15" else b35_floor
-            candidate["bucket"] = bucket
-            candidate["floor_ra"] = floor
-            candidate["score"] = _candidate_score(candidate, preferred_tags, floor, bucket)
-            if _score(candidate["ds"], 100.5) > floor:
-                result.append(candidate)
-    result.sort(key=lambda item: item["score"], reverse=True)
-    return result
+            result.append(candidate)
+
+    result.sort(key=_sort_key)
+    meta = {
+        "rating": rating,
+        "ds_min": ds_min,
+        "ds_max": ds_max,
+        "b35_floor": b35_floor,
+        "b15_floor": b15_floor,
+        "b35_full": b35_full,
+        "b15_full": b15_full,
+    }
+    return result, meta
+
+
+def _draw_music_info_sync(music: Any, qqid: int, user: Any) -> Any:
+    return asyncio.run(draw_music_info(music, qqid, user))
 
 
 async def score_recommend_handler(event: AstrMessageEvent):
+    if _RECOMMEND_SEMAPHORE.locked():
+        yield event.plain_result('吃分推荐正在处理其他请求，请稍后再试')
+        return
+
     qq = extract_at_qqid(event) or event.get_sender_id()
-    try:
-        user = await maiApi.query_user_b50(qqid=int(qq))
-    except (UserNotFoundError, UserNotExistsError):
-        yield event.plain_result('没有找到该玩家的水鱼 B50，请确认已绑定 QQ 或允许查询')
-        return
-    except UserDisabledQueryError:
-        yield event.plain_result('该玩家关闭了水鱼第三方成绩查询')
-        return
-    except Exception as exc:
-        yield event.plain_result(f'获取 B50 失败：{type(exc).__name__}')
-        return
+    async with _RECOMMEND_SEMAPHORE:
+        yield event.plain_result('正在从水鱼查分器拉取 B50 并计算吃分推荐，请稍候...')
 
-    b35, b15 = _buckets(user)
-    if not b35 and not b15:
-        yield event.plain_result('没有获取到可用 B50 数据')
-        return
+        try:
+            user = await asyncio.wait_for(
+                maiApi.query_user_b50(qqid=int(qq)),
+                timeout=QUERY_B50_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            yield event.plain_result('水鱼 B50 查询超时，请稍后再试')
+            return
+        except (UserNotFoundError, UserNotExistsError):
+            yield event.plain_result('没有找到该玩家的水鱼 B50，请确认已绑定 QQ 或允许查询')
+            return
+        except UserDisabledQueryError:
+            yield event.plain_result('该玩家关闭了水鱼第三方成绩查询')
+            return
+        except Exception as exc:
+            yield event.plain_result(f'获取 B50 失败：{type(exc).__name__}')
+            return
 
-    preferred_tags = _best_tags([*b35, *b15])
-    if not preferred_tags:
-        yield event.plain_result('还没有可用谱面标签，请先在 WebUI 完成谱面标签更新')
-        return
+        b35, b15 = _buckets(user)
+        if not b35 and not b15:
+            yield event.plain_result('没有获取到可用 B50 数据')
+            return
 
-    b35_floor = min([int(chart.ra or 0) for chart in b35], default=0)
-    b15_floor = min([int(chart.ra or 0) for chart in b15], default=0)
-    candidates = _collect_candidates(user, preferred_tags, b35_floor, b15_floor)
-    if not candidates:
-        yield event.plain_result('暂时没有找到符合你 B50 标签倾向且理论可吃分的候选谱面')
-        return
+        candidates, meta = await asyncio.to_thread(_collect_candidates, user)
+        if not meta.get("rating"):
+            yield event.plain_result('没有获取到可用 Rating，暂时无法计算吃分推荐区间')
+            return
+        if not candidates:
+            yield event.plain_result(
+                f'暂时没有找到符合条件的吃分候选谱面\n'
+                f'当前 Rating：{meta["rating"]}\n'
+                f'推荐定数区间：{meta["ds_min"]:.2f} - {meta["ds_max"]:.2f}\n'
+                f'B35 地板：{meta["b35_floor"]}，B15 地板：{meta["b15_floor"]}'
+            )
+            return
 
-    candidate = candidates[0]
-    music = candidate["music"]
-    fit_text = f'{candidate["fit_diff"]:.2f}' if candidate.get("fit_diff") is not None else '未知'
-    tags_text = '、'.join(candidate["tags"][:6])
-    reason = (
-        f'推荐吃分：{candidate["title"]} [{candidate["level"]} / {candidate["ds"]}]\n'
-        f'推荐分区：{candidate["bucket"]}，当前最低分：{candidate["floor_ra"]}\n'
-        f'命中标签：{tags_text}\n'
-        f'玩家擅长标签：{"、".join(preferred_tags)}\n'
-        f'拟合定数：{fit_text}，实际定数：{candidate["ds"]}\n'
-        f'理由：这张谱面命中了你 B50 中出现频率较高的标签，并且理论 Rating 有机会超过当前 {candidate["bucket"]} 最低分。'
-    )
-    yield event.plain_result(reason)
-    pic = await draw_music_info(music, event.get_sender_id(), user)
-    chain = convert_message_segment_to_chain(pic)
-    yield event.chain_result(chain)
+        candidate = candidates[0]
+        music = candidate["music"]
+        fit_text = f'{candidate["fit_diff"]:.2f}' if candidate.get("fit_diff") is not None else '未知'
+        fit_delta_text = f'{candidate["fit_delta"]:+.2f}' if candidate.get("fit_delta") is not None else '未知'
+        tags = await asyncio.to_thread(get_chart_tags, candidate["song_id"], candidate["level_index"])
+        tags_text = '、'.join(tags[:6]) if tags else '暂无'
+        if candidate["floor_ra"] > 0:
+            floor_text = f'当前已有最低分：{candidate["floor_ra"]}'
+        else:
+            floor_text = '暂无已有正分地板'
+        if not candidate["bucket_full"]:
+            floor_text += '（分区未满）'
+        reason = (
+            f'推荐吃分：{candidate["title"]} [{candidate["level"]} / {candidate["ds"]}]\n'
+            f'当前 Rating：{meta["rating"]}，推荐定数区间：{meta["ds_min"]:.2f} - {meta["ds_max"]:.2f}\n'
+            f'推荐分区：{candidate["bucket"]}，{floor_text}\n'
+            f'SSS+ 理论单曲 Rating：{candidate["sssp_ra"]}（高出地板 {candidate["entry_margin"]}）\n'
+            f'拟合定数：{fit_text}，实际定数：{candidate["ds"]}，拟合-实际：{fit_delta_text}\n'
+            f'谱面标签：{tags_text}\n'
+            f'筛选：定数区间通过、SSS+ 理论分高于对应地板，且该谱面未以 SSS+ 出现在 B50 中。'
+        )
+        yield event.plain_result(reason)
+        try:
+            pic = await asyncio.to_thread(_draw_music_info_sync, music, int(event.get_sender_id()), user)
+            chain = convert_message_segment_to_chain(pic)
+            yield event.chain_result(chain)
+        except Exception:
+            log.exception("吃分推荐谱面详情图生成失败")
+            yield event.plain_result('谱面详情图生成失败，但上面的文字推荐已可用')

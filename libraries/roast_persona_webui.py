@@ -201,7 +201,7 @@ button:hover {{ background: #2447c4; }}
             {"command": "帮助 / help", "description": "发送帮助图片。"},
             {"command": "b50 [QQ号或@用户]", "description": "查询 Best 50 成绩图。"},
             {"command": "锐评b50 [风格或补充需求]", "description": "从水鱼拉取 B50 并调用 LLM 生成锐评图。"},
-            {"command": "/吃分推荐 [@用户]", "description": "按 B50 标签倾向、拟合定数和 B35/B15 最低分推荐吃分曲。"},
+            {"command": "/吃分推荐 [@用户]", "description": "按当前 Rating 区间、B35/B15 地板和拟合定数推荐吃分曲。"},
             {"command": "绑定水鱼 <水鱼token>", "description": "绑定用户个人水鱼 Import-Token。"},
             {"command": "更新b50 <SGWCMAID识别码>", "description": "首次或重新绑定机台用户信息，并同步成绩到水鱼。"},
             {"command": "更新b50", "description": "已有机台用户信息绑定后，复用旧绑定同步成绩。"},
