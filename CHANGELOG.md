@@ -3,6 +3,7 @@
 ## 1.3.0
 
 - 修复 P1 安装风险：补充 `APScheduler` 到 `requirements.txt`，避免纯净环境安装依赖后因缺少定时任务库导致插件导入失败。
+- 修复 P1 成绩同步依赖风险：`更新b50/导` 代码要求 `maimai-py>=1.4.2`、`maimai-ffi>=0.7.0`，现已将 `requirements.txt` 与运行期检查对齐，避免已安装旧版依赖时 `pip install -r requirements.txt` 不升级导致同步功能持续不可用。
 
 ## 1.2.2
 
