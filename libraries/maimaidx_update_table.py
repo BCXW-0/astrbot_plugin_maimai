@@ -4,7 +4,7 @@ import time
 import aiofiles
 
 from .. import *
-from .image import tricolor_gradient
+from .image import maimai_pic, tricolor_gradient
 from .maimai_best_50 import *
 from .maimaidx_music import Music, mai
 
@@ -12,7 +12,7 @@ from .maimaidx_music import Music, mai
 async def update_rating_table() -> str:
     """更新定数表"""
     try:
-        dx = Image.open(maimaidir / 'DX.png').convert('RGBA').resize((44, 16))
+        dx = maimai_pic('DX.png', (44, 16))
         diff = [Image.new('RGBA', (75, 16), color) for color in ScoreBaseImage.bg_color]
         if maiApi.config.saveinmem and not ScoreBaseImage.aurora_bg:
             ScoreBaseImage._load_image()
@@ -64,7 +64,7 @@ async def update_rating_table() -> str:
             dr = ImageDraw.Draw(im)
             sy = DrawText(dr, SIYUAN)
             ts = DrawText(dr, TBFONT)
-            im.alpha_composite(Image.open(maimaidir / 'design.png'), (200, height - 113))
+            im.alpha_composite(maimai_pic('design.png'), (200, height - 113))
             sy.draw(
                 700, 
                 height - 70, 
@@ -78,7 +78,7 @@ async def update_rating_table() -> str:
                 x = 160
                 y += 20
                 im.alpha_composite(
-                    Image.open(maimaidir / 'UI_CMN_Chara_Level_S_01.png').resize((80, 80)), (50, y + 80)
+                    maimai_pic('UI_CMN_Chara_Level_S_01.png', (80, 80)), (50, y + 80)
                 )
                 ts.draw(88, y + 120, 35, _lv, anchor='mm')
                 for num, music in enumerate(lvlist[_lv]):
@@ -173,7 +173,7 @@ async def update_plate_table() -> str:
             dr = ImageDraw.Draw(im)
             ts = DrawText(dr, TBFONT)
             sy = DrawText(dr, SIYUAN)
-            im.alpha_composite(Image.open(maimaidir / 'design.png'), (200, height - 113))
+            im.alpha_composite(maimai_pic('design.png'), (200, height - 113))
             sy.draw(
                 700, 
                 height - 70, 
@@ -191,7 +191,7 @@ async def update_plate_table() -> str:
                 if ralv[r]:
                     y += 15
                     im.alpha_composite(
-                        Image.open(maimaidir / 'UI_CMN_Chara_Level_S_01.png'), (65, y + 115)
+                        maimai_pic('UI_CMN_Chara_Level_S_01.png'), (65, y + 115)
                     )
                     ts.draw(113, y + 164, 35, r, anchor='mm')
                 x = 200

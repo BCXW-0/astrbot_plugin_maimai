@@ -1,11 +1,12 @@
 import base64
+from functools import lru_cache
 from io import BytesIO
 from typing import Tuple, Union
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from .. import SHANGGUMONO, Path, coverdir
+from .. import SHANGGUMONO, Path, coverdir, maimaidir
 
 
 class DrawText:
@@ -121,6 +122,24 @@ def music_picture(music_id: Union[int, str]) -> Path:
             if (_path := coverdir / f'{_id}.png').exists():
                 return _path
     return coverdir / '11000.png'
+
+
+@lru_cache(maxsize=256)
+def _cached_maimai_pic(name: str) -> Image.Image:
+    return Image.open(maimaidir / name).convert('RGBA')
+
+
+def maimai_pic(name: Union[str, Path], size: Tuple[int, int] = None) -> Image.Image:
+    path = Path(name)
+    if path.is_absolute():
+        path = path.relative_to(maimaidir) if path.parent == maimaidir else path
+    if path.parent not in (Path('.'), maimaidir):
+        im = Image.open(path).convert('RGBA')
+    else:
+        im = _cached_maimai_pic(path.name).copy()
+    if size:
+        im = im.resize(size)
+    return im
 
 
 def text_to_image(text: str) -> Image.Image:

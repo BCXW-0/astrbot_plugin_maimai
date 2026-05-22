@@ -421,18 +421,21 @@ class Guess:
         if not guess_file.exists():
             self.switch = GuessSwitch()
         else:
-            self.switch = GuessSwitch.model_validate(
-                json.load(open(guess_file, 'r', encoding='utf-8'))
-            )
-            # 清理数据，确保 enable 和 disable 列表中的值都是字符串类型（兼容旧数据，自动转换）
             try:
-                self.switch.enable = [str(x) for x in self.switch.enable if x is not None]
-            except (ValueError, TypeError):
-                self.switch.enable = []
-            try:
-                self.switch.disable = [str(x) for x in self.switch.disable if x is not None]
-            except (ValueError, TypeError):
-                self.switch.disable = []
+                with open(guess_file, 'r', encoding='utf-8') as f:
+                    self.switch = GuessSwitch.model_validate(json.load(f))
+            except Exception as e:
+                log.warning(f'读取猜歌群开关文件失败，使用默认配置: {type(e).__name__}: {e}')
+                self.switch = GuessSwitch()
+        # 清理数据，确保 enable 和 disable 列表中的值都是字符串类型（兼容旧数据，自动转换）
+        try:
+            self.switch.enable = [str(x) for x in self.switch.enable if x is not None]
+        except (ValueError, TypeError):
+            self.switch.enable = []
+        try:
+            self.switch.disable = [str(x) for x in self.switch.disable if x is not None]
+        except (ValueError, TypeError):
+            self.switch.disable = []
     
     def start(self, group_id: str):
         """开始猜歌"""

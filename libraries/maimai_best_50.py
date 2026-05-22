@@ -6,7 +6,7 @@ from typing import Optional, Tuple, Union, overload
 from PIL import Image, ImageDraw
 
 from .. import *
-from .image import DrawText, image_to_base64, music_picture
+from .image import DrawText, image_to_base64, maimai_pic, music_picture
 from .maimaidx_api_data import maiApi
 from .maimaidx_error import *
 from .maimaidx_model import ChartInfo, PlayInfoDefault, PlayInfoDev, UserInfo
@@ -53,27 +53,27 @@ class ScoreBaseImage:
     @classmethod
     def _load_image(cls):
         cls._diff = [
-            Image.open(maimaidir / 'b50_score_basic.png'), 
-            Image.open(maimaidir / 'b50_score_advanced.png'), 
-            Image.open(maimaidir / 'b50_score_expert.png'), 
-            Image.open(maimaidir / 'b50_score_master.png'), 
-            Image.open(maimaidir / 'b50_score_remaster.png')
+            maimai_pic('b50_score_basic.png'),
+            maimai_pic('b50_score_advanced.png'),
+            maimai_pic('b50_score_expert.png'),
+            maimai_pic('b50_score_master.png'),
+            maimai_pic('b50_score_remaster.png')
         ]
         cls._rise = [
-            Image.open(maimaidir / 'rise_score_basic.png'),
-            Image.open(maimaidir / 'rise_score_advanced.png'),
-            Image.open(maimaidir / 'rise_score_expert.png'),
-            Image.open(maimaidir / 'rise_score_master.png'),
-            Image.open(maimaidir / 'rise_score_remaster.png')
+            maimai_pic('rise_score_basic.png'),
+            maimai_pic('rise_score_advanced.png'),
+            maimai_pic('rise_score_expert.png'),
+            maimai_pic('rise_score_master.png'),
+            maimai_pic('rise_score_remaster.png')
         ]
-        cls.title_bg = Image.open(maimaidir / 'title.png')
-        cls.title_lengthen_bg = Image.open(maimaidir / 'title-lengthen.png')
-        cls.design_bg = Image.open(maimaidir / 'design.png')
-        cls.aurora_bg = Image.open(maimaidir / 'aurora.png').convert('RGBA').resize((1400, 220))
-        cls.shines_bg = Image.open(maimaidir / 'bg_shines.png').convert('RGBA')
-        cls.pattern_bg = Image.open(maimaidir / 'pattern.png')
-        cls.rainbow_bg = Image.open(maimaidir / 'rainbow.png').convert('RGBA')
-        cls.rainbow_bottom_bg = Image.open(maimaidir / 'rainbow_bottom.png').convert('RGBA').resize((1200, 200))
+        cls.title_bg = maimai_pic('title.png')
+        cls.title_lengthen_bg = maimai_pic('title-lengthen.png')
+        cls.design_bg = maimai_pic('design.png')
+        cls.aurora_bg = maimai_pic('aurora.png').resize((1400, 220))
+        cls.shines_bg = maimai_pic('bg_shines.png')
+        cls.pattern_bg = maimai_pic('pattern.png')
+        cls.rainbow_bg = maimai_pic('rainbow.png')
+        cls.rainbow_bottom_bg = maimai_pic('rainbow_bottom.png').resize((1200, 200))
     
     
     def __init__(self, image: Image.Image = None) -> None:
@@ -87,27 +87,27 @@ class ScoreBaseImage:
     
     def load_image(self):
         self._diff = [
-            Image.open(maimaidir / 'b50_score_basic.png'), 
-            Image.open(maimaidir / 'b50_score_advanced.png'), 
-            Image.open(maimaidir / 'b50_score_expert.png'), 
-            Image.open(maimaidir / 'b50_score_master.png'), 
-            Image.open(maimaidir / 'b50_score_remaster.png')
+            maimai_pic('b50_score_basic.png'),
+            maimai_pic('b50_score_advanced.png'),
+            maimai_pic('b50_score_expert.png'),
+            maimai_pic('b50_score_master.png'),
+            maimai_pic('b50_score_remaster.png')
         ]
         self._rise = [
-            Image.open(maimaidir / 'rise_score_basic.png'),
-            Image.open(maimaidir / 'rise_score_advanced.png'),
-            Image.open(maimaidir / 'rise_score_expert.png'),
-            Image.open(maimaidir / 'rise_score_master.png'),
-            Image.open(maimaidir / 'rise_score_remaster.png')
+            maimai_pic('rise_score_basic.png'),
+            maimai_pic('rise_score_advanced.png'),
+            maimai_pic('rise_score_expert.png'),
+            maimai_pic('rise_score_master.png'),
+            maimai_pic('rise_score_remaster.png')
         ]
-        self.title_bg = Image.open(maimaidir / 'title.png')
-        self.title_lengthen_bg = Image.open(maimaidir / 'title-lengthen.png')
-        self.design_bg = Image.open(maimaidir / 'design.png')
-        self.aurora_bg = Image.open(maimaidir / 'aurora.png').convert('RGBA').resize((1400, 220))
-        self.shines_bg = Image.open(maimaidir / 'bg_shines.png').convert('RGBA')
-        self.pattern_bg = Image.open(maimaidir / 'pattern.png')
-        self.rainbow_bg = Image.open(maimaidir / 'rainbow.png').convert('RGBA')
-        self.rainbow_bottom_bg = Image.open(maimaidir / 'rainbow_bottom.png').convert('RGBA').resize((1200, 200))
+        self.title_bg = maimai_pic('title.png')
+        self.title_lengthen_bg = maimai_pic('title-lengthen.png')
+        self.design_bg = maimai_pic('design.png')
+        self.aurora_bg = maimai_pic('aurora.png').resize((1400, 220))
+        self.shines_bg = maimai_pic('bg_shines.png')
+        self.pattern_bg = maimai_pic('pattern.png')
+        self.rainbow_bg = maimai_pic('rainbow.png')
+        self.rainbow_bottom_bg = maimai_pic('rainbow_bottom.png').resize((1200, 200))
     
     def whiledraw(
         self, 
@@ -146,21 +146,21 @@ class ScoreBaseImage:
                 continue
 
             cover = Image.open(music_picture(info.song_id)).resize((75, 75))
-            version = Image.open(maimaidir / f'{info.type.upper()}.png').resize((37, 14))
+            version = maimai_pic(f'{info.type.upper()}.png', (37, 14))
             if info.rate.islower():
-                rate = Image.open(maimaidir / f'UI_TTR_Rank_{score_Rank_l[info.rate]}.png').resize((63, 28))
+                rate = maimai_pic(f'UI_TTR_Rank_{score_Rank_l[info.rate]}.png', (63, 28))
             else:
-                rate = Image.open(maimaidir / f'UI_TTR_Rank_{info.rate}.png').resize((63, 28))
+                rate = maimai_pic(f'UI_TTR_Rank_{info.rate}.png', (63, 28))
 
             self._im.alpha_composite(self._diff[info.level_index], (x, y))
             self._im.alpha_composite(cover, (x + 12, y + 12))
             self._im.alpha_composite(version, (x + 51, y + 91))
             self._im.alpha_composite(rate, (x + 92, y + 78))
             if info.fc:
-                fc = Image.open(maimaidir / f'UI_MSS_MBase_Icon_{fcl[info.fc]}.png').resize((34, 34))
+                fc = maimai_pic(f'UI_MSS_MBase_Icon_{fcl[info.fc]}.png', (34, 34))
                 self._im.alpha_composite(fc, (x + 154, y + 77))
             if info.fs:
-                fs = Image.open(maimaidir / f'UI_MSS_MBase_Icon_{fsl[info.fs]}.png').resize((34, 34))
+                fs = maimai_pic(f'UI_MSS_MBase_Icon_{fsl[info.fs]}.png', (34, 34))
                 self._im.alpha_composite(fs, (x + 185, y + 77))
             
             # 安全获取歌曲信息和谱面数据，防止 IndexError
@@ -176,7 +176,7 @@ class ScoreBaseImage:
             dxnum = dxScore(int(info.dxScore / dxscore * 100)) if dxscore > 0 else 0
             if dxnum:
                 self._im.alpha_composite(
-                    Image.open(maimaidir / f'UI_GAM_Gauge_DXScoreIcon_0{dxnum}.png').resize((47, 26)), (x + 217, y + 80)
+                    maimai_pic(f'UI_GAM_Gauge_DXScoreIcon_0{dxnum}.png', (47, 26)), (x + 217, y + 80)
                 )
 
             self._tb.draw(x + 26, y + 98, 13, info.song_id, self.id_color[info.level_index], anchor='mm')
@@ -192,7 +192,7 @@ class ScoreBaseImage:
 class DrawBest(ScoreBaseImage):
 
     def __init__(self, UserInfo: UserInfo, qqid: Optional[Union[int, str]] = None) -> None:
-        super().__init__(Image.open(maimaidir / 'b50_bg.png').convert('RGBA'))
+        super().__init__(maimai_pic('b50_bg.png'))
         self.userName = UserInfo.nickname
         self.plate = UserInfo.plate
         self.addRating = UserInfo.additional_rating
@@ -247,20 +247,20 @@ class DrawBest(ScoreBaseImage):
 
     async def draw(self) -> Image.Image:
         
-        logo = Image.open(maimaidir / 'logo.png').resize((249, 120))
-        dx_rating = Image.open(maimaidir / self._findRaPic()).resize((186, 35))
-        Name = Image.open(maimaidir / 'Name.png')
-        MatchLevel = Image.open(maimaidir / self._findMatchLevel()).resize((80, 32))
-        ClassLevel = Image.open(maimaidir / 'UI_FBR_Class_00.png').resize((90, 54))
-        rating = Image.open(maimaidir / 'UI_CMN_Shougou_Rainbow.png').resize((270, 27))
+        logo = maimai_pic('logo.png', (249, 120))
+        dx_rating = maimai_pic(self._findRaPic(), (186, 35))
+        Name = maimai_pic('Name.png')
+        MatchLevel = maimai_pic(self._findMatchLevel(), (80, 32))
+        ClassLevel = maimai_pic('UI_FBR_Class_00.png', (90, 54))
+        rating = maimai_pic('UI_CMN_Shougou_Rainbow.png', (270, 27))
 
         self._im.alpha_composite(logo, (14, 60))
         if self.plate:
             plate = Image.open(platedir / f'{self.plate}.png').resize((800, 130))
         else:
-            plate = Image.open(maimaidir / 'UI_Plate_300501.png').resize((800, 130))
+            plate = maimai_pic('UI_Plate_300501.png', (800, 130))
         self._im.alpha_composite(plate, (300, 60))
-        icon = Image.open(maimaidir / 'UI_Icon_309503.png').resize((120, 120))
+        icon = maimai_pic('UI_Icon_309503.png', (120, 120))
         self._im.alpha_composite(icon, (305, 65))
         if self.qqid:
             try:
@@ -272,7 +272,7 @@ class DrawBest(ScoreBaseImage):
         Rating = f'{self.Rating:05d}'
         for n, i in enumerate(Rating):
             self._im.alpha_composite(
-                Image.open(maimaidir / f'UI_NUM_Drating_{i}.png').resize((17, 20)), (520 + 15 * n, 80)
+                maimai_pic(f'UI_NUM_Drating_{i}.png', (17, 20)), (520 + 15 * n, 80)
             )
         self._im.alpha_composite(Name, (435, 115))
         self._im.alpha_composite(MatchLevel, (625, 120))

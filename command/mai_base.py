@@ -279,10 +279,9 @@ async def mai_what_handler(event: AstrMessageEvent):
                 if _ra != 0:
                     ds = round(_ra / 22.4, 1)
                     musiclist = mai.total_list.filter(ds=(ds, ds + 1))
-                    for _m in musiclist:
-                        if int(_m.id) in ignore:
-                            musiclist.remove(_m)
-                    music = musiclist.random()
+                    candidates = [m for m in musiclist if int(m.id) not in ignore]
+                    if candidates:
+                        music = random.choice(candidates)
             except (UserNotFoundError, UserDisabledQueryError):
                 pass
     

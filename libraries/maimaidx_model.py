@@ -48,8 +48,8 @@ class Music(BaseModel):
     cids: List[int]
     charts: List[Chart]
     basic_info: BasicInfo
-    stats: Optional[List[Optional[Stats]]] = []
-    diff: Optional[List[int]] = []
+    stats: Optional[List[Optional[Stats]]] = Field(default_factory=list)
+    diff: Optional[List[int]] = Field(default_factory=list)
 
 
 class RaMusic(BaseModel):
@@ -107,8 +107,8 @@ class GuessPicData(GuessData): ...
 
 class Switch(BaseModel):
 
-    enable: List[str] = []  # 使用字符串类型，group_id 在 AstrBotMessage 中是字符串
-    disable: List[str] = []  # 使用字符串类型，group_id 在 AstrBotMessage 中是字符串
+    enable: List[str] = Field(default_factory=list)  # 使用字符串类型，group_id 在 AstrBotMessage 中是字符串
+    disable: List[str] = Field(default_factory=list)  # 使用字符串类型，group_id 在 AstrBotMessage 中是字符串
 
 
 class GuessSwitch(Switch): ...
@@ -158,7 +158,7 @@ class UserInfo(_UserInfo):
 class PlayInfoDefault(PlayInfo):
     
     song_id: int = Field(alias='id')
-    table_level: List[int] = []
+    table_level: List[int] = Field(default_factory=list)
 
 
 class PlayInfoDev(ChartInfo): ...

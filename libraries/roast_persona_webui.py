@@ -264,11 +264,22 @@ button:hover {{ background: #2447c4; }}
             return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
         return web.json_response(await asyncio.to_thread(self.chart_tag_job.status))
 
+    @staticmethod
+    def _parse_int_param(raw: Any, default: int | None = None) -> tuple[int | None, str | None]:
+        try:
+            value = default if raw is None or raw == "" else int(raw)
+        except (TypeError, ValueError):
+            return default, "参数必须是整数"
+        return value, None
+
     async def chart_tags_search(self, request: web.Request) -> web.Response:
         if not self._check_auth(request):
             return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
         query = str(request.query.get("q", "") or "").strip().lower()
-        limit = max(1, min(80, int(request.query.get("limit", "30") or 30)))
+        limit, error = self._parse_int_param(request.query.get("limit"), default=30)
+        if error:
+            return web.json_response({"ok": False, "message": f"limit {error}"}, status=400)
+        limit = max(1, min(80, limit))
         items = await asyncio.to_thread(self._search_chart_tag_items, query, limit)
         return web.json_response({"ok": True, "items": items, "allowed_tags": ALLOWED_TAGS})
 
@@ -310,7 +321,9 @@ button:hover {{ background: #2447c4; }}
         if not self._check_auth(request):
             return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
         data = await request.json() if request.can_read_body else {}
-        batch_size = int((data or {}).get("batch_size", 50) or 50)
+        batch_size, error = self._parse_int_param((data or {}).get("batch_size"), default=50)
+        if error:
+            return web.json_response({"ok": False, "message": f"batch_size {error}"}, status=400)
         result = await self.chart_tag_job.start(batch_size=batch_size)
         return web.json_response(result)
 
@@ -468,8 +481,12 @@ button:hover {{ background: #2447c4; }}
             return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
         name = request.match_info["name"]
         limit_raw = request.query.get("limit")
-        offset = int(request.query.get("offset", "0") or 0)
-        limit = int(limit_raw) if limit_raw is not None else None
+        offset, error = self._parse_int_param(request.query.get("offset"), default=0)
+        if error:
+            return web.json_response({"ok": False, "message": f"offset {error}"}, status=400)
+        limit, error = self._parse_int_param(limit_raw, default=None)
+        if error:
+            return web.json_response({"ok": False, "message": f"limit {error}"}, status=400)
         return web.json_response({"ok": True, "name": name, "sample_count": self.manager.get_sample_count(name), "taste_roast": self.manager.get_taste_roast(name), "special_note": self.manager.get_special_note(name), "samples": self.manager.get_samples(name, limit=limit, offset=offset)})
 
     async def list_personas(self, request: web.Request) -> web.Response:

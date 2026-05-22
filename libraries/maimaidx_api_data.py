@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 from aiohttp import ClientSession, ClientTimeout
 
-from .. import config_json
+from .. import config_json, log
 from .maimaidx_error import *
 from .maimaidx_model import *  # noqa: F403
 
@@ -32,7 +32,15 @@ class MaimaiAPI:
         self.MaiAliasProxyAPI = None
     
     def load_config(self) -> MaiConfig:
-        return MaiConfig.model_validate(json.load(open(config_json, 'r', encoding='utf-8')))
+        try:
+            if not config_json.exists():
+                log.warning(f'配置文件不存在，使用默认配置: {config_json}')
+                return MaiConfig()
+            with open(config_json, 'r', encoding='utf-8') as f:
+                return MaiConfig.model_validate(json.load(f))
+        except Exception as e:
+            log.warning(f'读取配置文件失败，使用默认配置: {type(e).__name__}: {e}')
+            return MaiConfig()
     
     def load_token_proxy(self) -> None:
         self.MaiProberProxyAPI = self.MaiProberAPI if not self.config.maimaidxproberproxy else self.MaiProxyAPI + '/maimaidxprober'
@@ -280,12 +288,17 @@ class MaimaiAPI:
                     'nk': qqid,
                     's': 100
                 }
-                res = await session.request('GET', self.QQAPI, params=params)
+                async with session.get(self.QQAPI, params=params) as res:
+                    if res.status != 200:
+                        return None
+                    return await res.read()
             elif icon:
-                res = await session.request('GET', icon)
+                async with session.get(icon) as res:
+                    if res.status != 200:
+                        return None
+                    return await res.read()
             else:
                 return None
-            return await res.read()
 
 
 maiApi = MaimaiAPI()

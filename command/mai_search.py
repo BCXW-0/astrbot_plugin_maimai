@@ -17,6 +17,14 @@ from ..libraries.maimaidx_music import guess, mai
 from ..libraries.maimaidx_music_info import draw_music_info
 
 
+BASE_SEARCH_USAGE = dedent('''
+        命令格式：
+        定数查歌 「定数」「页数」
+        定数查歌 「定数下限」「定数上限」「页数」
+    ''').strip()
+BPM_SEARCH_USAGE = '命令格式：\nbpm查歌 「bpm」\nbpm查歌 「bpm下限」「bpm上限」「页数」'
+
+
 def image_chain_from_text(text: str) -> list[Comp.Image]:
     img_base64 = image_to_base64(text_to_image(text))
     if img_base64.startswith('base64://'):
@@ -126,11 +134,7 @@ async def search_base_handler(event: AstrMessageEvent):
     
     args: List[str] = args_str.split()
     if len(args) > 3 or len(args) == 0:
-        yield event.plain_result(dedent('''
-                命令格式：
-                定数查歌 「定数」「页数」
-                定数查歌 「定数下限」「定数上限」「页数」
-            ''').strip())
+        yield event.plain_result(BASE_SEARCH_USAGE)
         return
     
     page = 1
@@ -144,8 +148,12 @@ async def search_base_handler(event: AstrMessageEvent):
             page = args[1]
     else:
         ds1, ds2, page = args
-    page = int(page)
-    result = song_level(float(ds1), float(ds2))
+    try:
+        page = int(page)
+        result = song_level(float(ds1), float(ds2))
+    except (TypeError, ValueError):
+        yield event.plain_result(BASE_SEARCH_USAGE)
+        return
     if not result:
         yield event.plain_result('没有找到这样的乐曲。')
         return
@@ -187,19 +195,23 @@ async def search_bpm_handler(event: AstrMessageEvent):
     
     args = args_str.split()
     page = 1
-    if len(args) == 1:
-        result = mai.total_list.filter(bpm=int(args[0]))
-    elif len(args) == 2:
-        if (bpm := int(args[0])) > int(args[1]):
-            page = int(args[1])
-            result = mai.total_list.filter(bpm=bpm)
+    try:
+        if len(args) == 1:
+            result = mai.total_list.filter(bpm=int(args[0]))
+        elif len(args) == 2:
+            if (bpm := int(args[0])) > int(args[1]):
+                page = int(args[1])
+                result = mai.total_list.filter(bpm=bpm)
+            else:
+                result = mai.total_list.filter(bpm=(bpm, int(args[1])))
+        elif len(args) == 3:
+            result = mai.total_list.filter(bpm=(int(args[0]), int(args[1])))
+            page = int(args[2])
         else:
-            result = mai.total_list.filter(bpm=(bpm, int(args[1])))
-    elif len(args) == 3:
-        result = mai.total_list.filter(bpm=(int(args[0]), int(args[1])))
-        page = int(args[2])
-    else:
-        yield event.plain_result('命令格式：\nbpm查歌 「bpm」\nbpm查歌 「bpm下限」「bpm上限」「页数」')
+            yield event.plain_result(BPM_SEARCH_USAGE)
+            return
+    except (TypeError, ValueError):
+        yield event.plain_result(BPM_SEARCH_USAGE)
         return
     
     if not result:
