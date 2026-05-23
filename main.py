@@ -13,7 +13,7 @@ from .libraries.maimaidx_api_data import maiApi
 from .libraries.maimaidx_music import mai
 import sys
 
-@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.4.0")
+@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.4.1")
 class MaimaiDXPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
@@ -486,7 +486,7 @@ class MaimaiDXPlugin(Star):
         async for result in best50_handler(event):
             yield result
 
-    @filter.regex(r'^/?吃分推荐\s*(.*)$')
+    @filter.regex(r'^/?(?:吃分推荐|吃分|推分建议)\s*(.*)$')
     async def score_recommend(self, event: AstrMessageEvent):
         group_id = event.message_obj.group_id
         if group_id and not self._is_group_enabled(str(group_id)):

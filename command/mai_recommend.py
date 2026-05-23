@@ -115,7 +115,8 @@ def _choose_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any] | None
     pool = _candidate_pool(candidates)
     if not pool:
         return None
-    return random.choice(pool)
+    weights = list(range(len(pool), 0, -1))
+    return random.choices(pool, weights=weights, k=1)[0]
 
 
 def _pool_size(candidates: list[dict[str, Any]]) -> int:
