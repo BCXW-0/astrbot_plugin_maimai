@@ -495,7 +495,7 @@ class MaimaiDXPlugin(Star):
         async for result in score_recommend_handler(event):
             yield result
 
-    @filter.regex(r'^(?:/?吃粪推荐|我要吃大粪)\s*(.*)$')
+    @filter.regex(r'^(?:/?吃粪推荐|/?吃分不推荐|我要吃大粪)\s*(.*)$')
     async def bad_score_recommend(self, event: AstrMessageEvent):
         group_id = event.message_obj.group_id
         if group_id and not self._is_group_enabled(str(group_id)):
