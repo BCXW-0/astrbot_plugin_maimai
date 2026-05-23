@@ -33,6 +33,10 @@ def get_service(config: dict | None) -> MaimaiUpdateService:
     return _service
 
 
+def join_messages(*messages: str) -> str:
+    return "\n".join(message for message in messages if message)
+
+
 async def sgwcmaid_update_handler(event: Any, context: Any | None = None, config: dict | None = None) -> AsyncGenerator[str, None]:
     message_str = (getattr(event, "message_str", "") or "").strip()
     raw_arg = re.sub(r"^(更新b50|导)(?:[\s:：]+)?", "", message_str, flags=re.IGNORECASE).strip()
@@ -48,19 +52,16 @@ async def sgwcmaid_update_handler(event: Any, context: Any | None = None, config
     service = get_service(config)
     if sgid:
         recall_notice = await recall_current_message(event, context, config)
-        if recall_notice:
-            yield recall_notice
         stopper = getattr(event, "stop_event", None)
         if callable(stopper):
             stopper()
         if not is_probable_sgid(sgid):
-            yield "❌ SGID 格式不正确，请发送以 SGWCMAID 开头的完整文本。"
+            yield join_messages(recall_notice, "❌ SGID 格式不正确，请发送以 SGWCMAID 开头的完整文本。")
             return
         max_age_seconds = max(30, int_config(config, "sgid_max_age_seconds", 180))
         if validation_error := validate_sgid_for_one_time_use(sgid, max_age_seconds):
-            yield f"❌ {validation_error}"
+            yield join_messages(recall_notice, f"❌ {validation_error}")
             return
-        yield "⏳ 正在用本次 SGID 拉取机台成绩并同步到水鱼，请稍候..."
         try:
             arcade_identifier = await service.arcade_identifier_from_sgid(sgid)
             credentials = getattr(arcade_identifier, "credentials", None)
@@ -69,12 +70,11 @@ async def sgwcmaid_update_handler(event: Any, context: Any | None = None, config
             result = await service.sync_to_divingfish(arcade_identifier, import_token)
         except Exception as exc:
             log.exception("更新b50失败")
-            yield f"❌ 更新失败：{service.describe_error(exc)}"
+            yield join_messages(recall_notice, f"❌ 更新失败：{service.describe_error(exc)}")
             return
-        yield format_success(result)
+        yield join_messages(recall_notice, format_success(result))
         return
     if saved_credentials:
-        yield "⏳ 正在使用已绑定的机台用户信息同步成绩到水鱼，请稍候..."
         try:
             result = await service.sync_from_credentials_to_divingfish(saved_credentials, import_token)
         except Exception as exc:
