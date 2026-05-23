@@ -83,13 +83,14 @@ def _is_sssp_in_b50(chart: Any) -> bool:
     return rate in {"sssp", "sss+"} or achievements >= 100.5
 
 
-def _sort_key(candidate: dict[str, Any]) -> tuple[float, bool, float, int, str]:
-    fit_delta = candidate.get("fit_delta")
+def _sort_key(candidate: dict[str, Any]) -> tuple[bool, float, float, float, str]:
+    actual_fit_delta = candidate.get("actual_fit_delta")
+    floor_margin = candidate.get("floor_margin")
     return (
+        actual_fit_delta is None,
+        -(float(actual_fit_delta) if actual_fit_delta is not None else 0.0),
         float(candidate["ds"]),
-        fit_delta is None,
-        float(fit_delta) if fit_delta is not None else 999,
-        -int(candidate["sssp_ra"]),
+        -(float(floor_margin) if floor_margin is not None else 0.0),
         str(candidate["title"]),
     )
 
@@ -203,7 +204,7 @@ def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
                 continue
 
             fit = _fit_diff(music, level_index)
-            fit_delta = float(fit) - ds if fit is not None else None
+            actual_fit_delta = ds - float(fit) if fit is not None else None
             candidate = {
                 "music": music,
                 "song_id": str(music.id),
@@ -212,7 +213,7 @@ def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
                 "level": music.level[level_index],
                 "ds": ds,
                 "fit_diff": fit,
-                "fit_delta": fit_delta,
+                "actual_fit_delta": actual_fit_delta,
                 "is_new": bool(music.basic_info.is_new),
                 "bucket": bucket,
                 "floor_ra": floor,
@@ -220,7 +221,7 @@ def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
                 "ds_min": ds_min,
                 "ds_max": ds_max,
                 "sssp_ra": sssp_ra,
-                "entry_margin": sssp_ra - floor,
+                "floor_margin": sssp_ra - floor,
             }
             result.append(candidate)
 
@@ -294,7 +295,7 @@ async def score_recommend_handler(event: AstrMessageEvent):
             return
         music = candidate["music"]
         fit_text = f'{candidate["fit_diff"]:.2f}' if candidate.get("fit_diff") is not None else '未知'
-        fit_delta_text = f'{candidate["fit_delta"]:+.2f}' if candidate.get("fit_delta") is not None else '未知'
+        actual_fit_delta_text = f'{candidate["actual_fit_delta"]:+.2f}' if candidate.get("actual_fit_delta") is not None else '未知'
         tags = await asyncio.to_thread(get_chart_tags, candidate["song_id"], candidate["level_index"])
         tags_text = '、'.join(tags[:6]) if tags else '暂无'
         tendency = await asyncio.to_thread(_b50_tag_tendency, b35, b15)
@@ -309,8 +310,8 @@ async def score_recommend_handler(event: AstrMessageEvent):
             f'推荐吃分：{candidate["title"]} [{candidate["level"]} / {candidate["ds"]}]\n'
             f'当前 Rating：{meta["rating"]}，推荐定数区间：{candidate["ds_min"]:.2f} - {candidate["ds_max"]:.2f}\n'
             f'推荐分区：{candidate["bucket"]}，{floor_text}\n'
-            f'SSS+ 理论单曲 Rating：{candidate["sssp_ra"]}（高出地板 {candidate["entry_margin"]}）\n'
-            f'拟合定数：{fit_text}，实际定数：{candidate["ds"]}，拟合-实际：{fit_delta_text}\n'
+            f'SSS+ 理论单曲 Rating：{candidate["sssp_ra"]}（高出地板 {candidate["floor_margin"]}）\n'
+            f'实际定数：{candidate["ds"]}，拟合定数：{fit_text}，实际-拟合：{actual_fit_delta_text}\n'
             f'候选池：前 {_pool_size(candidates)} 首中随机，第 {_candidate_rank(candidates, candidate)} 位\n'
             f'谱面标签：{tags_text}\n'
             f'b50倾向：{tendency_text}'

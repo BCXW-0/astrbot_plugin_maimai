@@ -1,6 +1,6 @@
 name: astrbot_plugin_maimai # 插件唯一识别名
 display_name: 舞萌DX真NB # 用于展示的名字
 desc: 国服舞萌查分插件，支持查询成绩、排名、曲目信息等功能（一定要看文档！！！） # 插件简短描述
-version: 1.4.1 # 插件版本号
+version: 1.4.2 # 插件版本号
 author: Xiawan # 作者
 repo: https://github.com/BCXW-0/astrbot_plugin_maimai # 插件的仓库地址
