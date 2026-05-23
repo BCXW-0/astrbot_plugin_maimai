@@ -85,10 +85,11 @@ def _is_sssp_in_b50(chart: Any) -> bool:
     return rate in {"sssp", "sss+"} or achievements >= 100.5
 
 
-def _sort_key(candidate: dict[str, Any]) -> tuple[bool, float, float, float, str]:
+def _sort_key(candidate: dict[str, Any]) -> tuple[float, bool, float, float, float, str]:
     actual_fit_delta = candidate.get("actual_fit_delta")
     floor_margin = candidate.get("floor_margin")
     return (
+        -float(candidate.get("tag_overlap", 0)),
         actual_fit_delta is None,
         -(float(actual_fit_delta) if actual_fit_delta is not None else 0.0),
         float(candidate["ds"]),
@@ -97,9 +98,10 @@ def _sort_key(candidate: dict[str, Any]) -> tuple[bool, float, float, float, str
     )
 
 
-def _avoid_sort_key(candidate: dict[str, Any]) -> tuple[float, bool, float, str]:
+def _avoid_sort_key(candidate: dict[str, Any]) -> tuple[float, float, bool, float, str]:
     fit_actual_delta = candidate.get("fit_actual_delta")
     return (
+        float(candidate.get("tag_overlap", 0)),
         float(candidate["ds"]),
         fit_actual_delta is None,
         -(float(fit_actual_delta) if fit_actual_delta is not None else 0.0),
@@ -174,6 +176,30 @@ def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5) -> list[st
     ]
 
 
+def _b50_tag_set(b35: list[Any], b15: list[Any], tags_data: dict[str, Any]) -> set[str]:
+    result: set[str] = set()
+    for chart in [*b35, *b15]:
+        song_id = str(getattr(chart, "song_id", "") or "")
+        try:
+            level_index = int(getattr(chart, "level_index", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if not song_id:
+            continue
+        result.update(_tags_from_data(tags_data, song_id, level_index))
+    return result
+
+
+def _add_tag_overlap(candidates: list[dict[str, Any]], b35: list[Any], b15: list[Any]) -> list[dict[str, Any]]:
+    tags_data = read_chart_tags()
+    b50_tags = _b50_tag_set(b35, b15, tags_data)
+    for candidate in candidates:
+        tags = _tags_from_data(tags_data, candidate["song_id"], candidate["level_index"])
+        candidate["tags"] = tags
+        candidate["tag_overlap"] = len(set(tags) & b50_tags)
+    return candidates
+
+
 def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     b35, b15 = _buckets(user)
     rating = _current_rating(user, b35, b15)
@@ -242,6 +268,7 @@ def _collect_candidates(user: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
             }
             result.append(candidate)
 
+    result = _add_tag_overlap(result, b35, b15)
     result.sort(key=_sort_key)
     meta = {
         "rating": rating,
@@ -332,7 +359,7 @@ async def _recommend_handler(event: AstrMessageEvent, avoid: bool):
         fit_text = f'{candidate["fit_diff"]:.2f}' if candidate.get("fit_diff") is not None else '未知'
         actual_fit_delta_text = f'{candidate["actual_fit_delta"]:+.2f}' if candidate.get("actual_fit_delta") is not None else '未知'
         fit_actual_delta_text = f'{candidate["fit_actual_delta"]:+.2f}' if candidate.get("fit_actual_delta") is not None else '未知'
-        tags = await asyncio.to_thread(get_chart_tags, candidate["song_id"], candidate["level_index"])
+        tags = candidate.get("tags") or await asyncio.to_thread(get_chart_tags, candidate["song_id"], candidate["level_index"])
         tags_text = '、'.join(tags[:6]) if tags else '暂无'
         tendency = await asyncio.to_thread(_b50_tag_tendency, b35, b15)
         tendency_text = '、'.join(tendency) if tendency else '暂无'
