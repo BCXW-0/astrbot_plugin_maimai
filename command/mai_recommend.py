@@ -26,6 +26,7 @@ RECOMMEND_MAX_DS = 15.0
 RECOMMEND_LEVEL_INDEXES = (2, 3, 4)
 RECOMMEND_CONCURRENCY_LIMIT = 2
 RECOMMEND_RANDOM_POOL_MAX_SIZE = 10
+RECOMMEND_POOL_WEIGHT_STEP = 0.4
 _RECOMMEND_SEMAPHORE = asyncio.Semaphore(RECOMMEND_CONCURRENCY_LIMIT)
 
 
@@ -116,7 +117,10 @@ def _choose_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any] | None
     pool = _candidate_pool(candidates)
     if not pool:
         return None
-    weights = list(range(len(pool), 0, -1))
+    weights = [
+        1 + (len(pool) - index - 1) * RECOMMEND_POOL_WEIGHT_STEP
+        for index in range(len(pool))
+    ]
     return random.choices(pool, weights=weights, k=1)[0]
 
 
