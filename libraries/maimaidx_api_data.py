@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any, Dict
 
@@ -12,6 +13,7 @@ class MaiConfig(BaseModel):
     
     maimaidxtoken: Optional[str] = None
     maimaidxproberproxy: bool = False
+    maimai_http_proxy: Optional[str] = None
     saveinmem: Optional[bool] = True
 
 
@@ -30,6 +32,8 @@ class MaimaiAPI:
         self.headers = None
         self.token = None
         self.MaiAliasProxyAPI = None
+        self._session: ClientSession | None = None
+        self._session_loop: asyncio.AbstractEventLoop | None = None
     
     def load_config(self) -> MaiConfig:
         try:
@@ -46,8 +50,22 @@ class MaimaiAPI:
         self.MaiProberProxyAPI = self.MaiProberAPI if not self.config.maimaidxproberproxy else self.MaiProxyAPI + '/maimaidxprober'
         self.MaiAliasProxyAPI = self.MaiAliasAPI
         self.token = self.config.maimaidxtoken
-        if self.token:
-            self.headers = {'developer-token': self.token}
+        self.headers = {'developer-token': self.token} if self.token else None
+
+    async def _get_session(self) -> ClientSession:
+        loop = asyncio.get_running_loop()
+        if self._session is None or self._session.closed or self._session_loop is not loop:
+            if self._session and not self._session.closed:
+                await self._session.close()
+            self._session = ClientSession(timeout=ClientTimeout(total=30))
+            self._session_loop = loop
+        return self._session
+
+    async def close(self) -> None:
+        if self._session and not self._session.closed:
+            await self._session.close()
+        self._session = None
+        self._session_loop = None
     
     async def _requestalias(self, method: str, endpoint: str, **kwargs) -> APIResult:
         """
@@ -60,15 +78,15 @@ class MaimaiAPI:
         Returns:
             `APIResult` 返回结果
         """
-        async with ClientSession(timeout=ClientTimeout(total=30)) as session:
-            async with session.request(method, self.MaiAliasProxyAPI + endpoint, **kwargs) as res:
-                if res.status == 200:
-                    data = await res.json()
-                    return APIResult.model_validate(data)
-                elif res.status == 500:
-                    raise ServerError
-                else:
-                    raise UnknownError
+        session = await self._get_session()
+        async with session.request(method, self.MaiAliasProxyAPI + endpoint, **kwargs) as res:
+            if res.status == 200:
+                data = await res.json()
+                return APIResult.model_validate(data)
+            elif res.status == 500:
+                raise ServerError
+            else:
+                raise UnknownError
 
     async def _requestmai(
         self, 
@@ -86,37 +104,37 @@ class MaimaiAPI:
         Returns:
             `Dict[str, Any]` 返回结果
         """
-        async with ClientSession(timeout=ClientTimeout(total=30)) as session:
-            async with session.request(
-                method, 
-                self.MaiProberProxyAPI + endpoint, 
-                headers=self.headers, 
-                **kwargs
-            ) as res:
-                if res.status == 200:
-                    data = await res.json()
-                elif res.status == 400:
-                    error: Dict = await res.json()
-                    if 'message' in error:
-                        if error['message'] == 'no such user':
-                            raise UserNotFoundError
-                        elif error['message'] == 'user not exists':
-                            raise UserNotExistsError
-                        else:
-                            raise UserNotFoundError
-                    elif 'msg' in error:
-                        if error['msg'] == '开发者token有误':
-                            raise TokenError
-                        elif error['msg'] == '开发者token被禁用':
-                            raise TokenDisableError
-                        else:
-                            raise TokenNotFoundError
+        session = await self._get_session()
+        async with session.request(
+            method,
+            self.MaiProberProxyAPI + endpoint,
+            headers=self.headers,
+            **kwargs
+        ) as res:
+            if res.status == 200:
+                data = await res.json()
+            elif res.status == 400:
+                error: Dict = await res.json()
+                if 'message' in error:
+                    if error['message'] == 'no such user':
+                        raise UserNotFoundError
+                    elif error['message'] == 'user not exists':
+                        raise UserNotExistsError
                     else:
                         raise UserNotFoundError
-                elif res.status == 403:
-                    raise UserDisabledQueryError
+                elif 'msg' in error:
+                    if error['msg'] == '开发者token有误':
+                        raise TokenError
+                    elif error['msg'] == '开发者token被禁用':
+                        raise TokenDisableError
+                    else:
+                        raise TokenNotFoundError
                 else:
-                    raise UnknownError
+                    raise UserNotFoundError
+            elif res.status == 403:
+                raise UserDisabledQueryError
+            else:
+                raise UnknownError
         return data
     
     async def music_data(self):
@@ -281,24 +299,24 @@ class MaimaiAPI:
 
     async def qqlogo(self, qqid: int = None, icon: str = None) -> Optional[bytes]:
         """获取QQ头像"""
-        async with ClientSession(timeout=ClientTimeout(total=30)) as session:
-            if qqid:
-                params = {
-                    'b': 'qq',
-                    'nk': qqid,
-                    's': 100
-                }
-                async with session.get(self.QQAPI, params=params) as res:
-                    if res.status != 200:
-                        return None
-                    return await res.read()
-            elif icon:
-                async with session.get(icon) as res:
-                    if res.status != 200:
-                        return None
-                    return await res.read()
-            else:
-                return None
+        session = await self._get_session()
+        if qqid:
+            params = {
+                'b': 'qq',
+                'nk': qqid,
+                's': 100
+            }
+            async with session.get(self.QQAPI, params=params) as res:
+                if res.status != 200:
+                    return None
+                return await res.read()
+        elif icon:
+            async with session.get(icon) as res:
+                if res.status != 200:
+                    return None
+                return await res.read()
+        else:
+            return None
 
 
 maiApi = MaimaiAPI()

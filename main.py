@@ -760,5 +760,9 @@ class MaimaiDXPlugin(Star):
             await cancel_guess_tasks()
         except Exception as e:
             log.error(f'清理猜歌后台任务失败: {e}')
+        try:
+            await maiApi.close()
+        except Exception as e:
+            log.error(f'关闭maimai API会话失败: {e}')
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)

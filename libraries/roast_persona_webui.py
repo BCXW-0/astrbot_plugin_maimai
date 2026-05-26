@@ -14,6 +14,7 @@ from .chart_tags import ChartTagUpdateJob, generate_chart_tags_file
 from .chart_tags.constants import ALLOWED_TAGS, TAG_CATEGORIES
 from .chart_tags.rule_tags import filter_allowed_tags
 from .chart_tags.storage import read_chart_tags, write_json_atomic, CHART_TAGS_FILE
+from .maimaidx_api_data import maiApi
 from .roast.llm_client import resolve_roast_provider_id
 from .roast_persona_manager import RoastPersonaManager
 from .user_token_manager import get_token_manager
@@ -540,8 +541,9 @@ button:hover {{ background: #2447c4; }}
         return str(value or "").strip()
 
     def _apply_runtime_config(self, changed: list[str]) -> None:
-        if "maimaidxtoken" in changed and str(self.config.get("maimaidxtoken", "") or "").strip():
+        if "maimaidxtoken" in changed:
             maiApi.config.maimaidxtoken = str(self.config.get("maimaidxtoken", "") or "").strip()
+            maiApi.load_token_proxy()
         if "roast_persona_prompt_sample_limit" in changed:
             self.manager.update_prompt_sample_limit(int(self.config.get("roast_persona_prompt_sample_limit", 120) or 120))
         if "maimai_http_proxy" in changed:

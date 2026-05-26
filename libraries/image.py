@@ -9,6 +9,11 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from .. import SHANGGUMONO, Path, coverdir, maimaidir
 
 
+@lru_cache(maxsize=128)
+def _cached_font(font_path: str, size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(font_path, size)
+
+
 class DrawText:
 
     def __init__(self, image: ImageDraw.ImageDraw, font: Path) -> None:
@@ -16,7 +21,7 @@ class DrawText:
         self._font = str(font)
 
     def get_box(self, text: str, size: int) -> Tuple[float, float, float, float]:
-        return ImageFont.truetype(self._font, size).getbbox(text)
+        return _cached_font(self._font, size).getbbox(text)
 
     def draw(
         self,
@@ -30,7 +35,7 @@ class DrawText:
         stroke_fill: Tuple[int, int, int, int] = (0, 0, 0, 0),
         multiline: bool = False
     ) -> None:
-        font = ImageFont.truetype(self._font, size)
+        font = _cached_font(self._font, size)
         if multiline:
             self._img.multiline_text(
                 (pos_x, pos_y), 
@@ -143,7 +148,7 @@ def maimai_pic(name: Union[str, Path], size: Tuple[int, int] = None) -> Image.Im
 
 
 def text_to_image(text: str) -> Image.Image:
-    font = ImageFont.truetype(str(SHANGGUMONO), 24)
+    font = _cached_font(str(SHANGGUMONO), 24)
     padding = 10
     margin = 4
     lines = text.strip().split('\n')

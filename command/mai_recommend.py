@@ -12,7 +12,7 @@ from .. import log
 from ..command.mai_base import convert_message_segment_to_chain, extract_at_qqid
 from ..libraries.chart_tags.lookup import chart_key, get_chart_tags
 from ..libraries.chart_tags.rule_tags import filter_allowed_tags
-from ..libraries.chart_tags.storage import read_chart_tags
+from ..libraries.chart_tags.storage import CHART_TAGS_FILE, read_chart_tags
 from ..libraries.maimaidx_api_data import maiApi
 from ..libraries.maimaidx_error import UserDisabledQueryError, UserNotExistsError, UserNotFoundError
 from ..libraries.maimaidx_music import mai
@@ -29,6 +29,7 @@ RECOMMEND_RANDOM_POOL_MAX_SIZE = 10
 RECOMMEND_POOL_WEIGHT_STEP = 0.4
 AVOID_RECOMMEND_POOL_WEIGHT_STEP = 1.0
 _RECOMMEND_SEMAPHORE = asyncio.Semaphore(RECOMMEND_CONCURRENCY_LIMIT)
+_CHART_TAGS_CACHE: tuple[float, dict[str, Any]] | None = None
 
 
 def _sssp_rating(ds: float) -> int:
@@ -157,8 +158,21 @@ def _tags_from_data(tags_data: dict[str, Any], song_id: Any, level_index: Any) -
     return filter_allowed_tags(str(tag) for tag in tags)
 
 
-def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5) -> list[str]:
+def _read_chart_tags_cached() -> dict[str, Any]:
+    global _CHART_TAGS_CACHE
+    try:
+        mtime = CHART_TAGS_FILE.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    if _CHART_TAGS_CACHE and _CHART_TAGS_CACHE[0] == mtime:
+        return _CHART_TAGS_CACHE[1]
     tags_data = read_chart_tags()
+    _CHART_TAGS_CACHE = (mtime, tags_data)
+    return tags_data
+
+
+def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5, tags_data: dict[str, Any] | None = None) -> list[str]:
+    tags_data = tags_data if tags_data is not None else _read_chart_tags_cached()
     counts: dict[str, int] = {}
     for chart in [*b35, *b15]:
         song_id = str(getattr(chart, "song_id", "") or "")
@@ -191,7 +205,7 @@ def _b50_tag_set(b35: list[Any], b15: list[Any], tags_data: dict[str, Any]) -> s
 
 
 def _add_tag_overlap(candidates: list[dict[str, Any]], b35: list[Any], b15: list[Any]) -> list[dict[str, Any]]:
-    tags_data = read_chart_tags()
+    tags_data = _read_chart_tags_cached()
     b50_tags = _b50_tag_set(b35, b15, tags_data)
     for candidate in candidates:
         tags = _tags_from_data(tags_data, candidate["song_id"], candidate["level_index"])

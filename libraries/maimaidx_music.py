@@ -68,18 +68,75 @@ def in_or_equal(
 
 
 class MusicList(List[Music]):
+    def __init__(self, iterable=()) -> None:
+        super().__init__(iterable)
+        self._id_index: Dict[str, Music] = {}
+        self._title_index: Dict[str, Music] = {}
+        self._index_dirty = True
+
+    def append(self, item: Music) -> None:
+        super().append(item)
+        self._index_dirty = True
+
+    def extend(self, iterable) -> None:
+        super().extend(iterable)
+        self._index_dirty = True
+
+    def insert(self, index: int, item: Music) -> None:
+        super().insert(index, item)
+        self._index_dirty = True
+
+    def pop(self, index: int = -1) -> Music:
+        item = super().pop(index)
+        self._index_dirty = True
+        return item
+
+    def remove(self, item: Music) -> None:
+        super().remove(item)
+        self._index_dirty = True
+
+    def clear(self) -> None:
+        super().clear()
+        self._index_dirty = True
+
+    def sort(self, *args, **kwargs) -> None:
+        super().sort(*args, **kwargs)
+        self._index_dirty = True
+
+    def reverse(self) -> None:
+        super().reverse()
+        self._index_dirty = True
+
+    def __setitem__(self, key, value) -> None:
+        super().__setitem__(key, value)
+        self._index_dirty = True
+
+    def __delitem__(self, key) -> None:
+        super().__delitem__(key)
+        self._index_dirty = True
+
+    def __iadd__(self, value):
+        result = super().__iadd__(value)
+        self._index_dirty = True
+        return result
+
+    def _ensure_index(self) -> None:
+        if not self._index_dirty:
+            return
+        self._id_index = {}
+        self._title_index = {}
+        for music in self:
+            self._id_index.setdefault(str(music.id), music)
+            self._title_index.setdefault(music.title, music)
+        self._index_dirty = False
     
     def by_id(self, music_id: Union[str, int]) -> Optional[Music]:
-        for music in self:
-            if music.id == str(music_id):
-                return music
-        return None
+        self._ensure_index()
+        return self._id_index.get(str(music_id))
 
     def by_title(self, music_title: str) -> Optional[Music]:
-        for music in self:
-            if music.title == music_title:
-                return music
-        return None
+        self._ensure_index()
+        return self._title_index.get(music_title)
     
     def by_plan(
         self, 

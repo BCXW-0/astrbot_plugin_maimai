@@ -291,7 +291,7 @@ http://127.0.0.1:8796/?token=你的token
 | `static/disabled_groups.json` | 群禁用状态 | 不应提交 |
 | `static/group_guess_switch.json` | 群猜歌开关 | 不应提交 |
 | `static/maimaidx_chart_tags.json` | 谱面标签数据 | 可提交空模板或维护后的公共标签库 |
-| `static/maimaidx_chart_tags_job.json` | 谱面标签任务状态 | 可提交空模板 |
+| `static/maimaidx_chart_tags_job.json` | 谱面标签任务状态 | 不建议，运行期自动创建 |
 | `static/mai/` | 曲绘、牌子、Rating 和绘图素材 | 不建议提交完整资源包 |
 
 ### 数据与安全建议

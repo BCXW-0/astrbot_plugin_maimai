@@ -25,6 +25,23 @@ BASE_SEARCH_USAGE = dedent('''
 BPM_SEARCH_USAGE = '命令格式：\nbpm查歌 「bpm」\nbpm查歌 「bpm下限」「bpm上限」「页数」'
 
 
+def total_pages(total: int) -> int:
+    return max(1, (total + SONGS_PER_PAGE - 1) // SONGS_PER_PAGE)
+
+
+def clamp_page(page: int, total: int) -> int:
+    return max(1, min(page, total_pages(total)))
+
+
+def page_footer(page: int, total: int) -> str:
+    return f'第「{page}」页，共「{total_pages(total)}」页。请使用「id xxxxx」查询指定曲目。'
+
+
+def is_guessing_group(event: AstrMessageEvent) -> bool:
+    group_id = event.message_obj.group_id
+    return bool(group_id and str(group_id) in guess.Group)
+
+
 def image_chain_from_text(text: str) -> list[Comp.Image]:
     img_base64 = image_to_base64(text_to_image(text))
     if img_base64.startswith('base64://'):
@@ -109,9 +126,7 @@ async def search_music_handler(event: AstrMessageEvent):
         if (page - 1) * SONGS_PER_PAGE <= i < page * SONGS_PER_PAGE:
             search_result += f'{f"「{music.id}」":<7} {music.title}\n'
     search_result += (
-        f'第「{page}」页，'
-        f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
-        '请使用「id xxxxx」查询指定曲目。'
+        page_footer(page, len(result))
     )
     yield event.chain_result(image_chain_from_text(search_result))
 
@@ -158,15 +173,14 @@ async def search_base_handler(event: AstrMessageEvent):
         yield event.plain_result('没有找到这样的乐曲。')
         return
     
+    page = clamp_page(page, len(result))
     search_result = ''
     for i, _result in enumerate(result):
         id, title, ds, diff = _result
         if (page - 1) * SONGS_PER_PAGE <= i < page * SONGS_PER_PAGE:
             search_result += f'{f"「{id}」":<7}{f"「{diff}」":<11}{f"「{ds}」"} {title}\n'
     search_result += (
-        f'第「{page}」页，'
-        f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
-        '请使用「id xxxxx」查询指定曲目。'
+        page_footer(page, len(result))
     )
     yield event.chain_result(image_chain_from_text(search_result))
 
@@ -178,9 +192,7 @@ async def search_bpm_handler(event: AstrMessageEvent):
         yield event.plain_result('歌曲数据未加载，请稍后再试或联系管理员')
         return
     
-    group_id = event.message_obj.group_id
-    # group_id 在 AstrBotMessage 中已经是字符串，直接使用
-    if group_id and group_id in guess.Group:
+    if is_guessing_group(event):
         yield event.plain_result('本群正在猜歌，不要作弊哦~')
         return
     
@@ -219,16 +231,14 @@ async def search_bpm_handler(event: AstrMessageEvent):
         return
     
     search_result = ''
-    page = max(min(page, len(result) // SONGS_PER_PAGE + 1), 1)
+    page = clamp_page(page, len(result))
     result.sort(key=lambda x: int(x.basic_info.bpm))
     
     for i, m in enumerate(result):
         if (page - 1) * SONGS_PER_PAGE <= i < page * SONGS_PER_PAGE:
             search_result += f'{f"「{m.id}」":<7}{f"「BPM {m.basic_info.bpm}」":<9} {m.title} \n'
     search_result += (
-        f'第「{page}」页，'
-        f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
-        '请使用「id xxxxx」查询指定曲目。'
+        page_footer(page, len(result))
     )
     yield event.chain_result(image_chain_from_text(search_result))
 
@@ -240,9 +250,7 @@ async def search_artist_handler(event: AstrMessageEvent):
         yield event.plain_result('歌曲数据未加载，请稍后再试或联系管理员')
         return
     
-    group_id = event.message_obj.group_id
-    # group_id 在 AstrBotMessage 中已经是字符串，直接使用
-    if group_id and group_id in guess.Group:
+    if is_guessing_group(event):
         yield event.plain_result('本群正在猜歌，不要作弊哦~')
         return
     
@@ -276,14 +284,12 @@ async def search_artist_handler(event: AstrMessageEvent):
         return
     
     search_result = ''
-    page = max(min(page, len(result) // SONGS_PER_PAGE + 1), 1)
+    page = clamp_page(page, len(result))
     for i, m in enumerate(result):
         if (page - 1) * SONGS_PER_PAGE <= i < page * SONGS_PER_PAGE:
             search_result += f'{f"「{m.id}」":<7}{f"「{m.basic_info.artist}」"} - {m.title}\n'
     search_result += (
-        f'第「{page}」页，'
-        f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
-        '请使用「id xxxxx」查询指定曲目。'
+        page_footer(page, len(result))
     )
     yield event.chain_result(image_chain_from_text(search_result))
 
@@ -295,9 +301,7 @@ async def search_charter_handler(event: AstrMessageEvent):
         yield event.plain_result('歌曲数据未加载，请稍后再试或联系管理员')
         return
     
-    group_id = event.message_obj.group_id
-    # group_id 在 AstrBotMessage 中已经是字符串，直接使用
-    if group_id and group_id in guess.Group:
+    if is_guessing_group(event):
         yield event.plain_result('本群正在猜歌，不要作弊哦~')
         return
     
@@ -331,7 +335,7 @@ async def search_charter_handler(event: AstrMessageEvent):
         return
     
     search_result = ''
-    page = max(min(page, len(result) // SONGS_PER_PAGE + 1), 1)
+    page = clamp_page(page, len(result))
     for i, m in enumerate(result):
         if (page - 1) * SONGS_PER_PAGE <= i < page * SONGS_PER_PAGE:
             diff_charter = zip([diffs[d] for d in m.diff], [m.charts[d].charter for d in m.diff])
@@ -343,9 +347,7 @@ async def search_charter_handler(event: AstrMessageEvent):
             line = f"{f'「{m.id}」':<7}{diff_str} {m.title}\n"
             search_result += line
     search_result += (
-        f'第「{page}」页，'
-        f'共「{len(result) // SONGS_PER_PAGE + 1}」页。'
-        '请使用「id xxxxx」查询指定曲目。'
+        page_footer(page, len(result))
     )
     yield event.chain_result(image_chain_from_text(search_result))
 
