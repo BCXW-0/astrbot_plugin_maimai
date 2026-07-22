@@ -35,7 +35,6 @@ class RoastPersonaWebUI:
         "daily_update_alias": {"label": "每日自动更新别名", "type": "bool"},
         "daily_update_tables_if_empty": {"label": "空表时自动补全", "type": "bool"},
         "daily_update_hour": {"label": "每日维护小时", "type": "int", "min": 0},
-        "init_include_tables": {"label": "初始化包含表图", "type": "bool"},
     }
 
     def __init__(self, manager: RoastPersonaManager, host: str, port: int, access_token: str, config: dict | None = None, context: Any | None = None):
@@ -214,7 +213,7 @@ button:hover {{ background: #2447c4; }}
             {"command": "绑定水鱼 <Import-Token>", "description": "绑定个人水鱼 Import-Token（建议私聊）。"},
             {"command": "更新b50 <SGWCMAID> / 导", "description": "机台成绩同步到水鱼。"},
             {"command": "info / minfo <曲名或ID>", "description": "查询自己的单曲成绩详情。"},
-            {"command": "舞萌体检 / 舞萌初始化", "description": "管理员：健康检查与一键更新热加载。"},
+            {"command": "舞萌体检 / 舞萌初始化", "description": "管理员：体检；一键更新曲库+别名+定数表+完成表并热加载。"},
         ]
         return web.json_response({"ok": True, "commands": commands})
 

@@ -18,68 +18,6 @@ from .. import static
 from ..libraries.tool import qqhash
 
 
-MAIMAIDX_HELP_TEXT = """舞萌 DX 插件帮助
-
-基础：
-帮助 / help：发送帮助图片
-今日mai / 今日舞萌 / 今日运势 / jrys：今日运势与推荐歌曲
-来个<难度>：随机一首指定等级歌曲，如 来个13+
-mai什么：随机推荐歌曲；包含推分语义时会尝试结合 B50 推荐
-
-管理员：
-开启舞萌功能 / 关闭舞萌功能：当前群功能开关
-更新maimai数据：刷新曲库、拟合定数和牌子数据
-更新别名库：刷新查歌使用的曲目别名缓存
-更新定数表：生成或更新等级定数表图片
-更新完成表：生成或更新牌子完成表图片
-
-查歌：
-查歌 <关键词> / search <关键词>：按标题或别名搜索歌曲
-id <歌曲ID>：按 ID 查询歌曲信息
-定数查歌 <定数>：按定数查询
-定数查歌 <下限> <上限> [页数]：按定数范围查询
-bpm查歌 <BPM>：按 BPM 查询
-bpm查歌 <下限> <上限> [页数]：按 BPM 范围查询
-曲师查歌 <曲师> [页数]：按曲师查询
-谱师查歌 <谱师> [页数]：按谱师查询
-
-成绩：
-b50 / B50 / ccb [水鱼用户名或@用户]：查询 Best 50
-info / minfo <曲名或ID>：查询自己的单曲成绩详情
-ginfo <曲名或ID>：查询全局谱面统计
-ginfo <绿黄红紫白><曲名或ID>：查询指定难度全局谱面统计
-查看排名 / 查看排行：查询公开 Rating 排名
-我的排名：查询自己在公开 Rating 排名中的位置
-分数线 <难度+歌曲ID> <目标达成率>：计算达成率容错
-<定数>的<达成率>是多少分：计算 Rating
-
-表格与进度：
-<等级>定数表：查看等级定数表，如 13+定数表
-<等级>完成表：查看等级完成表，如 13+完成表
-<牌子>完成表：查看牌子完成表，如 祭将完成表
-<牌子>进度：查询牌子进度，如 祭将进度
-<等级><评价>进度：查询等级评价进度，如 13+sss进度
-<定数>分数列表：查看指定定数或等级的成绩列表
-我要在<等级>上<分数>分：查找可提升 Rating 的谱面
-
-锐评与推荐：
-锐评b50 [人格或要求]：生成 B50 锐评
-/吃分推荐 [@用户]：按当前 Rating 区间、B35/B15 地板和拟合定数推荐吃分曲
-
-成绩同步：
-绑定水鱼 <水鱼token>：绑定水鱼 Import-Token
-查看水鱼：查看绑定状态
-解绑水鱼：解除绑定
-更新b50 <SGWCMAID识别码> / 导 <SGWCMAID识别码>：首次或重新绑定机台用户信息并同步成绩
-更新b50 / 导：复用已保存机台用户信息同步成绩
-
-猜歌：
-猜歌 / 猜曲绘：开始猜歌
-重置猜歌：重置当前猜歌
-开启mai猜歌 / 关闭mai猜歌：群猜歌开关
-"""
-
-
 def extract_at_qqid(event: AstrMessageEvent):
     """
     从消息中提取 @ 的 QQ ID
@@ -150,42 +88,6 @@ def convert_message_segment_to_chain(msg):
     return [Comp.Plain(str(msg))]
 
 
-async def update_data_handler(event: AstrMessageEvent, superusers: list = None):
-    """更新maimai数据（曲库+牌子+猜歌热加载）"""
-    sender_id = event.get_sender_id()
-    if superusers and str(sender_id) not in superusers:
-        yield event.plain_result('仅允许超级管理员执行此操作')
-        return
-
-    try:
-        from ..libraries.ops_service import refresh_runtime_music
-        await refresh_runtime_music(include_plate=True, include_guess=True)
-        count = len(mai.total_list) if getattr(mai, 'total_list', None) else 0
-        log.info(f'手动更新maimai数据成功，曲库 {count} 首')
-        yield event.plain_result(f'maimai数据更新完成（曲库 {count} 首，已热加载）')
-    except Exception as e:
-        log.error(f'手动更新maimai数据失败: {e}')
-        log.error(traceback.format_exc())
-        yield event.plain_result(f'maimai数据更新失败: {type(e).__name__}')
-
-
-async def update_alias_handler(event: AstrMessageEvent, superusers: list = None):
-    """更新别名库（热加载）"""
-    sender_id = event.get_sender_id()
-    if superusers and str(sender_id) not in superusers:
-        yield event.plain_result('仅允许超级管理员执行此操作')
-        return
-
-    try:
-        from ..libraries.ops_service import refresh_runtime_alias
-        await refresh_runtime_alias()
-        count = len(mai.total_alias_list) if getattr(mai, 'total_alias_list', None) else 0
-        log.info(f'手动更新别名库成功，{count} 条')
-        yield event.plain_result(f'手动更新别名库成功（{count} 条，已热加载）')
-    except Exception as e:
-        log.error(f'手动更新别名库失败: {e}')
-        log.error(traceback.format_exc())
-        yield event.plain_result('手动更新别名库失败')
 
 
 async def maimaidxhelp_handler(event: AstrMessageEvent):

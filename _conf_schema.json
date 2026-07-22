@@ -94,11 +94,5 @@
     "hint": "0-23，默认 4 点执行曲库/别名等维护。",
     "type": "int",
     "default": 4
-  },
-  "init_include_tables": {
-    "description": "初始化包含表图",
-    "hint": "舞萌初始化是否同时生成定数表与完成表（耗时更长）。",
-    "type": "bool",
-    "default": true
   }
 }

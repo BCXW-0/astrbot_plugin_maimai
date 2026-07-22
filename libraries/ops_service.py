@@ -116,24 +116,22 @@ async def refresh_runtime_alias() -> None:
     await mai.get_music_alias()
 
 
-async def full_initialize(include_tables: bool = True) -> InitReport:
-    """一键执行曲库/别名/牌子/表图更新，并热加载到运行态。"""
+async def full_initialize() -> InitReport:
+    """一键执行四项更新：曲库、别名、定数表、完成表，并热加载运行态。"""
     report = InitReport()
-    report.steps.append(await _run_step('更新maimai数据(曲库+拟合定数)', lambda: refresh_runtime_music(True, True)))
-    report.steps.append(await _run_step('更新别名库', refresh_runtime_alias))
-    if include_tables:
-        # 表图生成依赖 total_level_data / total_plate_id_list
-        if not getattr(mai, 'total_list', None):
-            report.steps.append(StepResult('更新定数表', False, '曲库未加载，已跳过'))
-            report.steps.append(StepResult('更新完成表', False, '曲库未加载，已跳过'))
-        else:
-            report.steps.append(await _run_step('更新定数表', update_rating_table))
-            if not getattr(mai, 'total_plate_id_list', None):
-                try:
-                    mai.total_plate_id_list = mai.build_plate_id_list_from_music()
-                except Exception:
-                    pass
-            report.steps.append(await _run_step('更新完成表', update_plate_table))
+    report.steps.append(await _run_step('1/4 曲库与拟合定数', lambda: refresh_runtime_music(True, True)))
+    report.steps.append(await _run_step('2/4 别名库', refresh_runtime_alias))
+    if not getattr(mai, 'total_list', None):
+        report.steps.append(StepResult('3/4 定数表', False, '曲库未加载，已跳过'))
+        report.steps.append(StepResult('4/4 完成表', False, '曲库未加载，已跳过'))
+        return report
+    report.steps.append(await _run_step('3/4 定数表', update_rating_table))
+    if not getattr(mai, 'total_plate_id_list', None):
+        try:
+            mai.total_plate_id_list = mai.build_plate_id_list_from_music()
+        except Exception:
+            pass
+    report.steps.append(await _run_step('4/4 完成表', update_plate_table))
     return report
 
 
@@ -165,13 +163,13 @@ async def collect_health_report(config: Optional[dict] = None, superusers: Optio
 
     issues: List[str] = []
     if music_count <= 0:
-        issues.append('运行态曲库为空：请执行「更新maimai数据」或「舞萌初始化」')
+        issues.append('运行态曲库为空：请执行「舞萌初始化」')
     if alias_count <= 0:
-        issues.append('运行态别名为空：请执行「更新别名库」')
+        issues.append('运行态别名为空：请执行「舞萌初始化」')
     if rating_pngs <= 0:
-        issues.append('定数表图片缺失：请执行「更新定数表」')
+        issues.append('定数表图片缺失：请执行「舞萌初始化」')
     if plate_pngs <= 0:
-        issues.append('完成表图片缺失：请执行「更新完成表」')
+        issues.append('完成表图片缺失：请执行「舞萌初始化」')
     if not token_ok:
         issues.append('未配置 Developer-Token：部分开发者成绩接口可能不可用（B50 基础查询通常仍可用）')
     if '不可用' in pw_text:
@@ -208,11 +206,11 @@ async def collect_health_report(config: Optional[dict] = None, superusers: Optio
         for idx, item in enumerate(issues, 1):
             lines.append(f'{idx}. {item}')
         lines.append('')
-        lines.append('建议：管理员私聊执行「舞萌初始化」一键修复。')
+        lines.append('建议：管理员私聊执行「舞萌初始化」（将一次性更新曲库、别名、定数表、完成表）。')
     else:
         lines.append('四、结论：状态健康，可正常使用。')
     lines.append('')
-    lines.append('常用管理指令：舞萌体检 / 舞萌初始化 / 更新maimai数据 / 更新别名库 / 更新定数表 / 更新完成表')
+    lines.append('常用管理指令：舞萌体检 / 舞萌初始化')
     return '\n'.join(lines)
 
 

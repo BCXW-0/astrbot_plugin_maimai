@@ -13,7 +13,7 @@ from .libraries.maimaidx_api_data import maiApi
 from .libraries.maimaidx_music import mai
 import sys
 
-@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.7.0")
+@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.7.1")
 class MaimaiDXPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
@@ -297,7 +297,7 @@ class MaimaiDXPlugin(Star):
             log.warning(
                 '注意！注意！检测到定数表文件夹为空！'
                 '可能导致「定数表」「完成表」指令无法使用，'
-                '请及时私聊BOT使用指令「更新定数表」进行生成。'
+                '请及时私聊BOT使用指令「舞萌初始化」进行生成。'
             )
         
         # 检查完成表文件夹
@@ -310,7 +310,7 @@ class MaimaiDXPlugin(Star):
             log.warning(
                 f'注意！注意！未检测到牌子文件夹中的牌子：{anyname}，'
                 '可能导致这些牌子的「完成表」指令无法使用，'
-                '请及时私聊BOT使用指令「更新完成表」进行生成。'
+                '请及时私聊BOT使用指令「舞萌初始化」进行生成。'
             )
         
         # 检查数据是否加载成功
@@ -387,19 +387,6 @@ class MaimaiDXPlugin(Star):
                 yield event.plain_result('本群舞萌功能已经是关闭状态')
     
     # 基础命令
-    @filter.command("更新maimai数据")
-    async def update_data(self, event: AstrMessageEvent):
-        """更新maimai数据"""
-        from .command.mai_base import update_data_handler
-        async for result in update_data_handler(event, self.superusers):
-            yield result
-
-    @filter.command("更新别名库")
-    async def update_alias(self, event: AstrMessageEvent):
-        """更新别名库"""
-        from .command.mai_base import update_alias_handler
-        async for result in update_alias_handler(event, self.superusers):
-            yield result
 
     @filter.regex(r'^(?:帮助|help)\s*(.*)$')
     async def maimaidxhelp(self, event: AstrMessageEvent):
@@ -422,6 +409,19 @@ class MaimaiDXPlugin(Star):
         from .command.mai_ops import full_init_handler
         async for result in full_init_handler(event, self.superusers, self.config):
             yield result
+
+    @filter.regex(r'^(更新maimai数据|更新别名库|更新定数表|更新完成表)$')
+    async def maimai_legacy_update_redirect(self, event: AstrMessageEvent):
+        """旧四项更新指令已合并为舞萌初始化"""
+        sender_id = str(event.get_sender_id())
+        if sender_id not in self.superusers:
+            yield event.plain_result('仅允许超级管理员执行此操作')
+            return
+        yield event.plain_result(
+            f'「{event.message_str.strip()}」已合并进「舞萌初始化」。\n'
+            '将一次性更新：曲库、别名、定数表、完成表。\n'
+            '请直接发送：舞萌初始化'
+        )
 
     @filter.regex(r'^新手入门$')
     async def onboarding(self, event: AstrMessageEvent):
@@ -756,27 +756,7 @@ class MaimaiDXPlugin(Star):
         async for result in guess_music_solve_handler(event):
             yield result
 
-    # 定数表/完成表命令
-    @filter.command("更新定数表")
-    async def update_table(self, event: AstrMessageEvent):
-        """更新定数表命令"""
-        group_id = event.message_obj.group_id
-        if group_id and not self._is_group_enabled(str(group_id)):
-            return
-        from .command.mai_table import update_table_handler
-        async for result in update_table_handler(event, self.superusers):
-            yield result
-
-    @filter.command("更新完成表")
-    async def update_plate(self, event: AstrMessageEvent):
-        """更新完成表命令"""
-        group_id = event.message_obj.group_id
-        if group_id and not self._is_group_enabled(str(group_id)):
-            return
-        from .command.mai_table import update_plate_handler
-        async for result in update_plate_handler(event, self.superusers):
-            yield result
-
+    # 定数表/完成表查询（更新请用「舞萌初始化」）
     @filter.regex(r'^(?!更新)(.+?)定数表$')
     async def rating_table(self, event: AstrMessageEvent):
         """定数表命令"""

@@ -1,13 +1,38 @@
 from __future__ import annotations
 
 
-def rating_band_hint(rating: int) -> str:
+def rating_band_label(rating: int) -> str:
+    """dx2026 国服常用分段标签（锐评用，非官方段位）。"""
+    if rating >= 16500:
+        return "顶段"
     if rating >= 16000:
-        return "当前 Rating 属于超高分段，B50 里低含金量、不到 100% 还吃分的谱要重点拷打；能留在 B50 的低达成谱通常说明它定数高或上限空间很大。"
+        return "超高分"
     if rating >= 15500:
-        return "当前 Rating 属于高分段，B50 应该逐步减少靠不到 100% 撑分的谱；如果仍有高定数低达成谱，说明潜力和债都很明显。"
+        return "高分"
     if rating >= 15000:
-        return "当前 Rating 属于中高分段，B50 里出现一些不到 100% 但还能吃分的谱很正常，可判断为上限尝试或潜力股；但地板谱如果太多就说明基本盘不稳。"
+        return "中高分"
     if rating >= 14500:
-        return "当前 Rating 属于成长分段，B50 里高定数不到 100% 的谱可以看作正在摸上限；锐评时要区分潜力股和纯靠定数硬蹭。"
-    return "当前 Rating 属于积累分段，B50 结构比单张成绩更重要；不到 100% 的谱如果能进 B50，通常代表上限尝试，但也要指出基本盘和鸟率问题。"
+        return "中坚"
+    if rating >= 14000:
+        return "成长"
+    if rating >= 13000:
+        return "进阶"
+    return "积累"
+
+
+def rating_band_hint(rating: int) -> str:
+    if rating >= 16500:
+        return "顶段：B50 容错极低，水谱地板、未满鸟吃分都是硬伤，优先拷打结构纯度。"
+    if rating >= 16000:
+        return "超高分：低含金量与未满鸟撑分要重点喷；能留在 B50 的低达成通常是高定上限或债。"
+    if rating >= 15500:
+        return "高分：应减少靠未满鸟硬蹭的谱；高定低达成=潜力与债并存。"
+    if rating >= 15000:
+        return "中高分：未满鸟高定可当上限尝试，但地板过多说明基本盘不稳。"
+    if rating >= 14500:
+        return "中坚：高定未满鸟可看作摸上限；要分清潜力股和纯蹭定数。"
+    if rating >= 14000:
+        return "成长：结构优先于单曲玄学，指出该补鸟还是该拔高。"
+    if rating >= 13000:
+        return "进阶：B50 完整度与鸟率比极限挖分更重要。"
+    return "积累：先看基本盘和版本适应，未满鸟进 B50 多半是上限尝试。"

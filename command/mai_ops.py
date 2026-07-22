@@ -1,4 +1,4 @@
-"""管理员运维指令：体检 / 初始化 / 状态。"""
+"""管理员运维指令：体检 / 初始化。"""
 from __future__ import annotations
 
 from astrbot.api.event import AstrMessageEvent
@@ -22,19 +22,13 @@ async def health_check_handler(event: AstrMessageEvent, superusers: list | None 
 
 
 async def full_init_handler(event: AstrMessageEvent, superusers: list | None = None, config: dict | None = None):
-    """舞萌初始化：一键更新曲库/别名/定数表/完成表并热加载。"""
+    """舞萌初始化：固定一次性执行曲库、别名、定数表、完成表并热加载。"""
     if not _is_superuser(event, superusers):
         yield event.plain_result('仅允许超级管理员执行此操作')
         return
 
-    include_tables = True
-    if config is not None and 'init_include_tables' in config:
-        include_tables = bool(config.get('init_include_tables', True))
-
     yield event.plain_result(
-        '开始舞萌初始化：将依次更新曲库、别名'
-        + ('、定数表、完成表' if include_tables else '')
-        + '，并热加载到运行态。请稍候…'
+        '开始舞萌初始化：将依次更新曲库、别名、定数表、完成表，并热加载到运行态。请稍候…'
     )
-    report = await full_initialize(include_tables=include_tables)
+    report = await full_initialize()
     yield event.plain_result(report.as_text())

@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-1.7.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-1.7.2-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -17,14 +17,14 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 
 ## 介绍
 
-面向 AstrBot 的国服舞萌 DX 插件：查歌、查分、B50、牌子/定数表、吃分推荐、成绩同步、锐评 B50、猜歌，以及管理员一键体检/初始化。
+面向 AstrBot 的国服舞萌 DX 插件：查歌、查分、B50、牌子/定数表、吃分推荐、成绩同步、锐评 B50、猜歌，以及管理员体检与一键初始化。
 
 相对上游主要变化：
 
 - 保留查歌 / 查分 / B50 / 定数表 / 完成表 / 猜歌
 - 移除别名投票、别名推送、机厅排卡
 - 增加水鱼 Import-Token 绑定、SGWCMAID 同步、吃分推荐、锐评人格 WebUI、谱面标签
-- `1.7.0`：舞萌体检、一键初始化、热加载、分层帮助、我的舞萌、目标推分、今日推分与打卡
+- `1.7.x`：`舞萌体检`、`舞萌初始化`（一次完成曲库+别名+定数表+完成表并热加载）、分层帮助、我的舞萌、目标推分与打卡；`1.7.2` 锐评 B50 含金量与提示词重构
 
 > 纯净仓库不含完整 `static/mai/` 资源包，部署后需自备静态资源并执行初始化。
 
@@ -37,7 +37,6 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 ### Git
 
 ```bash
-# 克隆到 AstrBot 插件目录，目录名可自定
 git clone https://github.com/BCXW-0/astrbot_plugin_maimai.git astrbot_plugin_maimaidx
 ```
 
@@ -60,7 +59,14 @@ python -m playwright install chromium   # B50 / ginfo 等出图需要
 舞萌初始化
 ```
 
-`舞萌初始化` ≈ 更新曲库 + 别名 + 定数表 + 完成表，并热加载运行态。
+`舞萌初始化` 会**一次性**完成并热加载：
+
+1. 曲库与拟合定数  
+2. 别名库  
+3. 定数表图片  
+4. 完成表图片  
+
+> 原独立指令 `更新maimai数据` / `更新别名库` / `更新定数表` / `更新完成表` 已移除；若仍输入旧指令，会提示改用 `舞萌初始化`。
 
 ## 配置
 
@@ -79,7 +85,6 @@ python -m playwright install chromium   # B50 / ginfo 等出图需要
 | `daily_update_alias` | 每日维护是否刷新别名 | `true` |
 | `daily_update_tables_if_empty` | 表图缺失时自动补全 | `true` |
 | `daily_update_hour` | 每日维护小时（0-23） | `4` |
-| `init_include_tables` | 初始化是否生成定数表/完成表 | `true` |
 
 Import-Token 请用户自行 `绑定水鱼`，不要写进仓库。
 
@@ -90,10 +95,7 @@ Import-Token 请用户自行 `绑定水鱼`，不要写进仓库。
 | 命令 | 说明 |
 |:----:|:-----|
 | `舞萌体检` / `舞萌状态` | 检查曲库、别名、表图、Token、Playwright、WebUI |
-| `舞萌初始化` / `一键更新舞萌` | 一键更新并热加载 |
-| `更新maimai数据` | 刷新曲库 / 拟合定数 / 牌子 |
-| `更新别名库` | 刷新别名 |
-| `更新定数表` / `更新完成表` | 生成表图 |
+| `舞萌初始化` / `一键更新舞萌` | 一键更新曲库+别名+定数表+完成表并热加载 |
 | `开启舞萌功能` / `关闭舞萌功能` | 当前群开关 |
 
 ### 基础 / 帮助
@@ -135,8 +137,8 @@ Import-Token 请用户自行 `绑定水鱼`，不要写进仓库。
 | `打卡 <ID>` / `练习记录` | 本地练习打卡 |
 | `我要在13+上10分` | 按等级找可涨分谱 |
 | `祭将进度` 等 | 牌子 / 等级进度 |
-| `13+定数表` / `祭将完成表` | 表图查询 |
-| `锐评b50` | LLM 锐评 |
+| `13+定数表` / `祭将完成表` | 表图查询（需先初始化生成） |
+| `锐评b50` | LLM 锐评（水鱼拟合定数含金量 + 圈内黑话） |
 
 ### 同步
 
@@ -167,19 +169,16 @@ http://127.0.0.1:8796/?token=你的token
 
 ## 数据与安全
 
-运行期文件（默认在插件 `static/`）：
-
 | 路径 | 说明 | 是否提交 |
 |:-----|:-----|:--------:|
-| `music_data.json` 等缓存 | 曲库 / 谱面 / 别名 | 否 |
-| `user_import_tokens.json` | 用户 Import-Token | 否 |
-| `arcade_credentials.json` | 机台凭据 | 否 |
-| `user_practice_log.json` | 练习打卡 | 否 |
-| `mai/` | 曲绘与表图资源 | 完整包不建议提交 |
-| `maimaidx_chart_tags.json` | 谱面标签 | 可维护公共库 |
+| `static/music_*.json` | 曲库 / 谱面 / 别名缓存 | 否 |
+| `static/user_import_tokens.json` | 用户 Import-Token | 否 |
+| `static/arcade_credentials.json` | 机台凭据 | 否 |
+| `static/user_practice_log.json` | 练习打卡 | 否 |
+| `static/mai/` | 曲绘与表图资源 | 完整包不建议提交 |
 
 - Developer-Token 走插件配置，不要写死仓库
-- 含 SGID 的同步建议私聊；插件会尝试撤回敏感消息
+- 含 SGID 的同步建议私聊
 - 本插件免费开源，不包含任何付费能力
 
 ## 致谢
