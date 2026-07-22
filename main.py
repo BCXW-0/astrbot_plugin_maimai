@@ -13,7 +13,7 @@ from .libraries.maimaidx_api_data import maiApi
 from .libraries.maimaidx_music import mai
 import sys
 
-@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.6.0")
+@register("astrbot_plugin_maimai", "Xiawan", "maimaiDX插件", "1.7.0")
 class MaimaiDXPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
@@ -325,26 +325,31 @@ class MaimaiDXPlugin(Star):
 
     def _setup_schedulers(self):
         """专门用于设置所有 apscheduler 定时任务"""
-        # 设置定时任务：每天凌晨4点更新数据
+        hour = 4
+        try:
+            hour = int(self.config.get('daily_update_hour', 4) or 4)
+        except (TypeError, ValueError):
+            hour = 4
+        hour = max(0, min(23, hour))
         self.scheduler.add_job(
             self._daily_update,
-            trigger=CronTrigger(hour=4),
+            trigger=CronTrigger(hour=hour),
             id="maimai_daily_update",
             name="maimai_daily_update",
             replace_existing=True,
             misfire_grace_time=300
         )
+        log.info(f'已设置每日维护任务：每天 {hour}:00')
 
     async def _daily_update(self):
-        """定时任务：每日更新数据"""
+        """定时任务：曲库/别名/空表补全与热加载"""
         try:
-            await mai.get_music()
-            if hasattr(mai, 'hot_music_ids'):
-                mai.hot_music_ids = []
-            mai.guess()
-            log.info('maimaiDX数据更新完毕')
+            from .libraries.ops_service import daily_maintenance
+            summary = await daily_maintenance(self.config)
+            log.info(f'maimaiDX每日维护完毕: {summary}')
         except Exception as e:
             log.error(f'定时更新数据失败: {e}')
+            log.error(traceback.format_exc())
     
     # 注册命令处理函数
     # 群组开关命令（超级管理员专用）
@@ -396,16 +401,80 @@ class MaimaiDXPlugin(Star):
         async for result in update_alias_handler(event, self.superusers):
             yield result
 
-    @filter.regex(r'^(帮助|help)$')
+    @filter.regex(r'^(?:帮助|help)\s*(.*)$')
     async def maimaidxhelp(self, event: AstrMessageEvent):
-        """帮助maimaiDX"""
-        # 检查群组是否启用
+        """帮助 / 分层帮助"""
         group_id = event.message_obj.group_id
         if group_id and not self._is_group_enabled(str(group_id)):
             return
-        
-        from .command.mai_base import maimaidxhelp_handler
-        async for result in maimaidxhelp_handler(event):
+        from .command.mai_progress import help_topic_handler
+        async for result in help_topic_handler(event):
+            yield result
+
+    @filter.regex(r'^(舞萌体检|舞萌状态)$')
+    async def maimai_health(self, event: AstrMessageEvent):
+        from .command.mai_ops import health_check_handler
+        async for result in health_check_handler(event, self.superusers, self.config):
+            yield result
+
+    @filter.regex(r'^(舞萌初始化|一键更新舞萌)$')
+    async def maimai_init(self, event: AstrMessageEvent):
+        from .command.mai_ops import full_init_handler
+        async for result in full_init_handler(event, self.superusers, self.config):
+            yield result
+
+    @filter.regex(r'^新手入门$')
+    async def onboarding(self, event: AstrMessageEvent):
+        group_id = event.message_obj.group_id
+        if group_id and not self._is_group_enabled(str(group_id)):
+            return
+        from .command.mai_progress import onboarding_handler
+        async for result in onboarding_handler(event):
+            yield result
+
+    @filter.regex(r'^我的舞萌(?:\s+.*)?$')
+    async def my_maimai(self, event: AstrMessageEvent):
+        group_id = event.message_obj.group_id
+        if group_id and not self._is_group_enabled(str(group_id)):
+            return
+        from .command.mai_progress import my_maimai_handler
+        async for result in my_maimai_handler(event):
+            yield result
+
+    @filter.regex(r'^(?:今日推分|今日3首|今日三首)(?:\s+.*)?$')
+    async def daily_plan(self, event: AstrMessageEvent):
+        group_id = event.message_obj.group_id
+        if group_id and not self._is_group_enabled(str(group_id)):
+            return
+        from .command.mai_recommend import daily_plan_handler
+        async for result in daily_plan_handler(event):
+            yield result
+
+    @filter.regex(r'^冲分?\s*[1-9]\d{3,4}\s*$')
+    async def target_rating(self, event: AstrMessageEvent):
+        group_id = event.message_obj.group_id
+        if group_id and not self._is_group_enabled(str(group_id)):
+            return
+        from .command.mai_recommend import target_recommend_handler
+        async for result in target_recommend_handler(event):
+            yield result
+
+    @filter.regex(r'^打卡\s*[0-9]+.*$')
+    async def practice_checkin(self, event: AstrMessageEvent):
+        group_id = event.message_obj.group_id
+        if group_id and not self._is_group_enabled(str(group_id)):
+            return
+        from .command.mai_progress import practice_checkin_handler
+        async for result in practice_checkin_handler(event):
+            yield result
+
+    @filter.regex(r'^练习记录$')
+    async def practice_list(self, event: AstrMessageEvent):
+        group_id = event.message_obj.group_id
+        if group_id and not self._is_group_enabled(str(group_id)):
+            return
+        from .command.mai_progress import practice_list_handler
+        async for result in practice_list_handler(event):
             yield result
 
     @filter.regex(r'^(今日mai|今日舞萌|今日运势|jrys)$')
@@ -738,7 +807,7 @@ class MaimaiDXPlugin(Star):
         async for result in rise_score_handler(event):
             yield result
 
-    @filter.regex(r'^([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉舞霸熊華华爽煌星宙祭祝双宴镜])([極极将舞神者]舞?)进度\s?(.+)?$')
+    @filter.regex(r'^([真超檄橙暁晓桃櫻樱紫菫堇白雪輝辉舞霸熊華华爽煌星宙祭祝双宴镜彩])([極极将舞神者]舞?)进度\s?(.+)?$')
     async def plate_process(self, event: AstrMessageEvent):
         """牌子进度命令"""
         group_id = event.message_obj.group_id

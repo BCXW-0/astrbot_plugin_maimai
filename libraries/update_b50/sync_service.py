@@ -92,4 +92,4 @@ class MaimaiUpdateService:
             cls = imports.get(class_name)
             if cls and isinstance(exc, cls):
                 return message
-        return f"操作失败：{exc.__class__.__name__}: {exc}"
+        return f"操作失败：{exc.__class__.__name__}。请联系管理员查看日志。"

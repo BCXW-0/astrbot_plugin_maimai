@@ -151,27 +151,37 @@ def convert_message_segment_to_chain(msg):
 
 
 async def update_data_handler(event: AstrMessageEvent, superusers: list = None):
-    """更新maimai数据"""
-    sender_id = event.get_sender_id()
-    if superusers and str(sender_id) not in superusers:
-        yield event.plain_result('仅允许超级管理员执行此操作')
-        return
-    
-    await mai.get_music()
-    yield event.plain_result('maimai数据更新完成')
-
-
-async def update_alias_handler(event: AstrMessageEvent, superusers: list = None):
-    """更新别名库"""
+    """更新maimai数据（曲库+牌子+猜歌热加载）"""
     sender_id = event.get_sender_id()
     if superusers and str(sender_id) not in superusers:
         yield event.plain_result('仅允许超级管理员执行此操作')
         return
 
     try:
-        await mai.get_music_alias()
-        log.info('手动更新别名库成功')
-        yield event.plain_result('手动更新别名库成功')
+        from ..libraries.ops_service import refresh_runtime_music
+        await refresh_runtime_music(include_plate=True, include_guess=True)
+        count = len(mai.total_list) if getattr(mai, 'total_list', None) else 0
+        log.info(f'手动更新maimai数据成功，曲库 {count} 首')
+        yield event.plain_result(f'maimai数据更新完成（曲库 {count} 首，已热加载）')
+    except Exception as e:
+        log.error(f'手动更新maimai数据失败: {e}')
+        log.error(traceback.format_exc())
+        yield event.plain_result(f'maimai数据更新失败: {type(e).__name__}')
+
+
+async def update_alias_handler(event: AstrMessageEvent, superusers: list = None):
+    """更新别名库（热加载）"""
+    sender_id = event.get_sender_id()
+    if superusers and str(sender_id) not in superusers:
+        yield event.plain_result('仅允许超级管理员执行此操作')
+        return
+
+    try:
+        from ..libraries.ops_service import refresh_runtime_alias
+        await refresh_runtime_alias()
+        count = len(mai.total_alias_list) if getattr(mai, 'total_alias_list', None) else 0
+        log.info(f'手动更新别名库成功，{count} 条')
+        yield event.plain_result(f'手动更新别名库成功（{count} 条，已热加载）')
     except Exception as e:
         log.error(f'手动更新别名库失败: {e}')
         log.error(traceback.format_exc())
@@ -179,15 +189,10 @@ async def update_alias_handler(event: AstrMessageEvent, superusers: list = None)
 
 
 async def maimaidxhelp_handler(event: AstrMessageEvent):
-    """帮助maimaiDX"""
-    from pathlib import Path
-    help_image_path = static / "help.png"
-    
-    if not help_image_path.exists():
-        yield event.plain_result("帮助图片未找到，请联系管理员")
-        return
-    
-    yield event.chain_result([Comp.Image.fromFileSystem(str(help_image_path))])
+    """帮助maimaiDX（兼容旧入口，转分层帮助）"""
+    from .mai_progress import help_topic_handler
+    async for result in help_topic_handler(event):
+        yield result
 
 
 async def mai_today_handler(event: AstrMessageEvent):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import math
 import random
 from typing import Any
@@ -302,6 +303,49 @@ def _sort_avoid_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, A
     return sorted(candidates, key=_avoid_sort_key)
 
 
+def _parse_target_rating(message: str) -> int | None:
+    """从消息中解析目标 Rating，如 冲 15000 / 吃分推荐 15000。"""
+    text = (message or "").strip()
+    text = re.sub(r"^/?(?:吃分推荐|吃分|推分建议|吃粪推荐|吃分不推荐|我要吃大粪|冲分?|目标)\s*", "", text)
+    text = re.sub(r"@\S+", " ", text)
+    m = re.search(r"(?<!\d)([1-9]\d{3,4})(?!\d)", text)
+    if not m:
+        return None
+    value = int(m.group(1))
+    if 1000 <= value <= 17000:
+        return value
+    return None
+
+
+def _filter_by_target(candidates: list[dict[str, Any]], current: int, target: int) -> list[dict[str, Any]]:
+    if target <= current:
+        return candidates
+    need = target - current
+    # 优先保留单曲 SSS+ 相对地板提升足够、或至少有正提升的候选
+    boosted = [c for c in candidates if int(c.get("floor_margin") or 0) > 0]
+    if not boosted:
+        return candidates
+    # 若需求很大，优先高提升；否则保留全部正提升
+    if need >= 50:
+        strong = [c for c in boosted if int(c.get("floor_margin") or 0) >= max(5, need // 20)]
+        return strong or boosted
+    return boosted
+
+
+def _pick_unique_plan(candidates: list[dict[str, Any]], n: int = 3) -> list[dict[str, Any]]:
+    picked: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for c in candidates:
+        sid = str(c.get("song_id"))
+        if sid in seen:
+            continue
+        seen.add(sid)
+        picked.append(c)
+        if len(picked) >= n:
+            break
+    return picked
+
+
 def _draw_music_info_sync(music: Any, qqid: int, user: Any) -> Any:
     return asyncio.run(draw_music_info(music, qqid, user))
 
@@ -351,11 +395,18 @@ async def _recommend_handler(event: AstrMessageEvent, avoid: bool):
         if not meta.get("rating"):
             yield _reply_text_result(event, '没有获取到可用 Rating，暂时无法计算吃分推荐区间')
             return
+        target = _parse_target_rating(event.message_str)
+        if target is not None and not avoid:
+            candidates = _filter_by_target(candidates, int(meta["rating"]), target)
+            meta = dict(meta)
+            meta["target_rating"] = target
         if not candidates:
             yield _reply_text_result(
                 event,
                 f'暂时没有找到符合条件的吃分候选谱面\n'
-                f'当前 Rating：{meta["rating"]}\n'
+                f'当前 Rating：{meta["rating"]}'
+                + (f'，目标：{target}' if target else '')
+                + f'\n'
                 f'B35 推荐定数区间：{meta["b35_ds_min"]:.2f} - {meta["ds_max"]:.2f}\n'
                 f'B15 推荐定数区间：{meta["b15_ds_min"]:.2f} - {meta["ds_max"]:.2f}\n'
                 f'B35 地板：{meta["b35_floor"]}，B15 地板：{meta["b15_floor"]}'
@@ -397,7 +448,7 @@ async def _recommend_handler(event: AstrMessageEvent, avoid: bool):
         else:
             reason = (
                 f'推荐吃分：{candidate["title"]} [{candidate["level"]} / {candidate["ds"]}]\n'
-                f'当前 Rating：{meta["rating"]}，推荐定数区间：{candidate["ds_min"]:.2f} - {candidate["ds_max"]:.2f}\n'
+                f'当前 Rating：{meta["rating"]}' + (f'，目标 {meta["target_rating"]}' if meta.get('target_rating') else '') + f'，推荐定数区间：{candidate["ds_min"]:.2f} - {candidate["ds_max"]:.2f}\n'
                 f'推荐分区：{candidate["bucket"]}，{floor_text}\n'
                 f'SSS+ 理论单曲 Rating：{candidate["sssp_ra"]}（高出地板 {candidate["floor_margin"]}）\n'
                 f'实际定数：{candidate["ds"]}，拟合定数：{fit_text}，实际-拟合：{actual_fit_delta_text}\n'
@@ -415,3 +466,67 @@ async def _recommend_handler(event: AstrMessageEvent, avoid: bool):
             yield event.chain_result(_reply_chain(event, [
                 Comp.Plain(reason + '\n谱面详情图生成失败，但上面的文字推荐已可用')
             ]))
+
+
+
+async def target_recommend_handler(event: AstrMessageEvent):
+    """冲 <Rating> / 冲分 <Rating>"""
+    async for result in _recommend_handler(event, avoid=False):
+        yield result
+
+
+async def daily_plan_handler(event: AstrMessageEvent):
+    """今日推分 / 今日3首：文字练习清单"""
+    if _RECOMMEND_SEMAPHORE.locked():
+        yield _reply_text_result(event, '推分推荐正在处理其他请求，请稍后再试')
+        return
+
+    qq = extract_at_qqid(event) or event.get_sender_id()
+    async with _RECOMMEND_SEMAPHORE:
+        try:
+            user = await asyncio.wait_for(
+                maiApi.query_user_b50(qqid=int(qq)),
+                timeout=QUERY_B50_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            yield _reply_text_result(event, '水鱼 B50 查询超时，请稍后再试')
+            return
+        except (UserNotFoundError, UserNotExistsError):
+            yield _reply_text_result(event, '没有找到该玩家的水鱼 B50，请先「新手入门」完成绑定/隐私设置')
+            return
+        except UserDisabledQueryError:
+            yield _reply_text_result(event, '该玩家关闭了水鱼第三方成绩查询')
+            return
+        except Exception as exc:
+            yield _reply_text_result(event, f'获取 B50 失败：{type(exc).__name__}')
+            return
+
+        candidates, meta = await asyncio.to_thread(_collect_candidates, user)
+        if not meta.get('rating') or not candidates:
+            yield _reply_text_result(event, '暂时无法生成今日推分清单（Rating 或候选不足）')
+            return
+        target = _parse_target_rating(event.message_str)
+        if target is not None:
+            candidates = _filter_by_target(candidates, int(meta['rating']), target)
+        plan = _pick_unique_plan(candidates, 3)
+        if not plan:
+            yield _reply_text_result(event, '暂时没有足够的不重复候选谱面')
+            return
+
+        lines = [
+            f"【今日推分清单】Rating {meta['rating']}"
+            + (f" -> 目标 {target}" if target else ''),
+            f"B35 地板 {meta['b35_floor']} / B15 地板 {meta['b15_floor']}",
+            '',
+        ]
+        for i, c in enumerate(plan, 1):
+            fit = f"{c['fit_diff']:.2f}" if c.get('fit_diff') is not None else '未知'
+            tags = c.get('tags') or []
+            tags_text = '、'.join(tags[:4]) if tags else '暂无'
+            lines.append(
+                f"{i}. {c['title']}  id {c['song_id']}  [{c['level']}/{c['ds']}]  {c['bucket']}\n"
+                f"   SSS+约 {c['sssp_ra']}（+{c['floor_margin']}） 拟合 {fit}  标签:{tags_text}"
+            )
+        lines.append('')
+        lines.append('练完可：打卡 <歌曲ID> [达成率] [备注]  |  单曲详情：id <歌曲ID>')
+        yield _reply_text_result(event, '\n'.join(lines))

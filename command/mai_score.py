@@ -51,14 +51,14 @@ async def bind_token_handler(event: AstrMessageEvent):
     token = message_str.replace('/绑定水鱼', '').replace('绑定水鱼', '').strip()
     
     if not token:
-        yield event.plain_result('请提供水鱼查分器 Import-Token\n\n用法：/绑定水鱼 <水鱼token>\n\n水鱼token 查看位置：\n水鱼查分器-编辑个人资料-成绩上传token')
+        yield event.plain_result('请提供水鱼查分器 Import-Token\n\n用法：绑定水鱼 <token>（建议私聊）\n位置：水鱼查分器 -> 编辑个人资料 -> 成绩上传 token\n\n新手可先发：新手入门')
         return
     
     from ..libraries.user_token_manager import get_token_manager
     mgr = get_token_manager()
     if mgr:
         mgr.set_token(qqid, token)
-        yield event.plain_result('水鱼 Import-Token 绑定成功！\n现在可以使用 更新b50 <SGWCMAID识别码> 或 导 <SGWCMAID识别码> 上传成绩了')
+        yield event.plain_result('水鱼 Import-Token 绑定成功！\n下一步：\n1) b50 查看成绩\n2) 更新b50 <SGWCMAID> 同步机台成绩（建议私聊）\n3) 我的舞萌 / 吃分推荐 开始推分')
     else:
         yield event.plain_result('token 管理器未初始化，请联系管理员')
 

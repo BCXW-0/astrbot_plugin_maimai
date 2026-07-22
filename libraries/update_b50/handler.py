@@ -37,6 +37,13 @@ def join_messages(*messages: str) -> str:
     return "\n".join(message for message in messages if message)
 
 
+def log_sync_failure(message: str, exc: BaseException, service: MaimaiUpdateService) -> None:
+    exc_name = exc.__class__.__name__
+    public_message = service.describe_error(exc)
+    logger = log.warning if exc_name.startswith(("Aime", "Arcade", "TitleServer", "Invalid", "Privacy")) else log.error
+    logger(f"{message}: {exc_name}: {public_message}")
+
+
 async def sgwcmaid_update_handler(event: Any, context: Any | None = None, config: dict | None = None) -> AsyncGenerator[str, None]:
     message_str = (getattr(event, "message_str", "") or "").strip()
     raw_arg = re.sub(r"^(更新b50|导)(?:[\s:：]+)?", "", message_str, flags=re.IGNORECASE).strip()
@@ -69,7 +76,7 @@ async def sgwcmaid_update_handler(event: Any, context: Any | None = None, config
                 credential_mgr.set_credential(qqid, credentials)
             result = await service.sync_to_divingfish(arcade_identifier, import_token)
         except Exception as exc:
-            log.exception("更新b50失败")
+            log_sync_failure("更新b50失败", exc, service)
             yield join_messages(recall_notice, f"❌ 更新失败：{service.describe_error(exc)}")
             return
         yield join_messages(recall_notice, format_success(result))
@@ -78,7 +85,7 @@ async def sgwcmaid_update_handler(event: Any, context: Any | None = None, config
         try:
             result = await service.sync_from_credentials_to_divingfish(saved_credentials, import_token)
         except Exception as exc:
-            log.exception("使用已绑定机台用户信息更新b50失败")
+            log_sync_failure("使用已绑定机台用户信息更新b50失败", exc, service)
             yield f"❌ 更新失败：{service.describe_error(exc)}\n如果旧绑定已失效，请重新执行：更新b50 <SGWCMAID识别码>"
             return
         yield format_success(result)

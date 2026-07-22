@@ -463,6 +463,9 @@ class MaiMusic:
         except Exception:
             self.total_plate_id_list = self.build_plate_id_list_from_music()
             raise
+        fallback_plate_id_list = self.build_plate_id_list_from_music()
+        for key, music_ids in fallback_plate_id_list.items():
+            total_plate_id_list.setdefault(key, music_ids)
         self.total_plate_id_list = total_plate_id_list
 
     def build_plate_id_list_from_music(self) -> Dict[str, List[int]]:

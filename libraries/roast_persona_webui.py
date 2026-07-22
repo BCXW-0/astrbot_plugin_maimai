@@ -32,6 +32,10 @@ class RoastPersonaWebUI:
         "request_timeout_seconds": {"label": "更新b50 请求超时", "type": "int", "min": 3},
         "maimai_http_proxy": {"label": "更新b50 HTTP 代理", "type": "string"},
         "warn_unsupported_recall": {"label": "敏感消息撤回提示", "type": "bool"},
+        "daily_update_alias": {"label": "每日自动更新别名", "type": "bool"},
+        "daily_update_tables_if_empty": {"label": "空表时自动补全", "type": "bool"},
+        "daily_update_hour": {"label": "每日维护小时", "type": "int", "min": 0},
+        "init_include_tables": {"label": "初始化包含表图", "type": "bool"},
     }
 
     def __init__(self, manager: RoastPersonaManager, host: str, port: int, access_token: str, config: dict | None = None, context: Any | None = None):
@@ -199,15 +203,18 @@ button:hover {{ background: #2447c4; }}
         if not self._check_auth(request):
             return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
         commands = [
-            {"command": "帮助 / help", "description": "发送帮助图片。"},
-            {"command": "b50 [QQ号或@用户]", "description": "查询 Best 50 成绩图。"},
-            {"command": "锐评b50 [风格或补充需求]", "description": "从水鱼拉取 B50 并调用 LLM 生成锐评图。"},
-            {"command": "/吃分推荐 [@用户]", "description": "按当前 Rating 区间、B35/B15 地板和拟合定数推荐吃分曲。"},
-            {"command": "绑定水鱼 <水鱼token>", "description": "绑定用户个人水鱼 Import-Token。"},
-            {"command": "更新b50 <SGWCMAID识别码>", "description": "首次或重新绑定机台用户信息，并同步成绩到水鱼。"},
-            {"command": "更新b50", "description": "已有机台用户信息绑定后，复用旧绑定同步成绩。"},
-            {"command": "导 <SGWCMAID识别码> / 导", "description": "更新b50 的别名。"},
+            {"command": "帮助 / help [主题]", "description": "高频帮助；主题可选 查分/推分/同步/猜歌/管理。"},
+            {"command": "新手入门", "description": "绑定与首次使用三步引导。"},
+            {"command": "我的舞萌", "description": "Rating、B35/B15、绑定状态与下一首建议。"},
+            {"command": "b50 [用户名或@用户]", "description": "查询 Best 50 成绩图。"},
+            {"command": "吃分推荐 [目标Rating] / 冲 <Rating>", "description": "智能吃分；可指定目标 Rating。"},
+            {"command": "今日推分 / 今日3首", "description": "生成今日练习清单。"},
+            {"command": "打卡 <歌曲ID> / 练习记录", "description": "本地练习打卡与记录。"},
+            {"command": "锐评b50 [风格或补充需求]", "description": "拉取 B50 并调用 LLM 生成锐评图。"},
+            {"command": "绑定水鱼 <Import-Token>", "description": "绑定个人水鱼 Import-Token（建议私聊）。"},
+            {"command": "更新b50 <SGWCMAID> / 导", "description": "机台成绩同步到水鱼。"},
             {"command": "info / minfo <曲名或ID>", "description": "查询自己的单曲成绩详情。"},
+            {"command": "舞萌体检 / 舞萌初始化", "description": "管理员：健康检查与一键更新热加载。"},
         ]
         return web.json_response({"ok": True, "commands": commands})
 

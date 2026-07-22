@@ -216,6 +216,7 @@ static/music_alias.json
 static/local_music_alias.json
 static/plate_id.json
 static/user_import_tokens.json
+static/user_practice_log.json
 static/arcade_credentials.json
 static/roast_personas.json
 static/webui_config_overrides.json
@@ -226,3 +227,7 @@ static/maimaidx_chart_tags_job.json
 static/temp_pie.html
 !static/maimaidx_chart_tags.json
 *.tmp
+
+COMMAND_TEST_REPORT.md
+
+RELOAD_COMMAND_TEST_REPORT.md

@@ -76,5 +76,29 @@
     "hint": "更新b50 时会尝试撤回包含 SGID 的用户消息。开启后如果撤回失败会提示用户手动撤回。",
     "type": "bool",
     "default": true
+  },
+  "daily_update_alias": {
+    "description": "每日自动更新别名",
+    "hint": "凌晨定时维护时是否同步刷新别名库并热加载。",
+    "type": "bool",
+    "default": true
+  },
+  "daily_update_tables_if_empty": {
+    "description": "空表时自动补全",
+    "hint": "定时维护时若定数表/完成表图片缺失则自动生成。",
+    "type": "bool",
+    "default": true
+  },
+  "daily_update_hour": {
+    "description": "每日维护小时",
+    "hint": "0-23，默认 4 点执行曲库/别名等维护。",
+    "type": "int",
+    "default": 4
+  },
+  "init_include_tables": {
+    "description": "初始化包含表图",
+    "hint": "舞萌初始化是否同时生成定数表与完成表（耗时更长）。",
+    "type": "bool",
+    "default": true
   }
 }
