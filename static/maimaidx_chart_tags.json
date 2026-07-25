@@ -985,11 +985,19 @@
         "break": 11,
         "total": 777
       },
-      "tags": [],
+      "tags": [
+        "底力"
+      ],
       "manual_tags": [],
-      "llm_tags": [],
-      "final_tags": [],
-      "tag_categories": {},
+      "llm_tags": [
+        "底力"
+      ],
+      "final_tags": [
+        "底力"
+      ],
+      "tag_categories": {
+        "底力": "体感类配置"
+      },
       "evidence": [
         {
           "source": "gamerch",
@@ -999,39 +1007,32 @@
           "search_url": "https://gamerch.com/maimai/545589"
         },
         {
-          "source": "youtube",
-          "title": "【Maimai】13 Beat Of Mind Re:MASTER 譜面確認",
-          "url": "https://www.youtube.com/watch?v=etRehgsRfiw",
-          "summary": "",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
-        },
-        {
           "source": "bilibili",
           "title": "【maimai】【谱面确认】Beat Of Mind 白谱Re:Master 14",
           "url": "https://www.bilibili.com/video/BV19q4y1e7dz/",
-          "summary": "仅供参考使用 欢迎点歌 | 舞萌 | MAIMAI | 音乐游戏 | 音游 | 谱面确认 | 谱面 | 打卡挑战",
+          "summary": "仅供参考使用 欢迎点歌 | 音乐游戏 | 舞萌 | MAIMAI | 音游 | 谱面确认 | 谱面 | 打卡挑战",
           "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
-        },
-        {
-          "source": "youtube",
-          "title": "〈 maimaiでらっくす手元動画 〉 Beat Of Mind Re:MASTER AP",
-          "url": "https://www.youtube.com/watch?v=J82xF1EkPaw",
-          "summary": "Player:だいすけ めっちゃ苦手だったな.",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+Beat+Of+Mind+Re%3AMaster+AP+%E6%89%8B%E5%85%83+%E5%A4%96%E9%83%A8%E5%87%BA%E5%8A%9B"
         },
         {
           "source": "bilibili",
-          "title": "【maimai/14.0定数AP制霸】BOM 白谱 Lv.14 AP手元（Beat of Mind Re:MASTER ALL PERFECT）",
-          "url": "https://www.bilibili.com/video/BV1wL411h7Rx/",
-          "summary": "等 哒哒哒 哒哒哒 哒哒哒 哒哒尼玛币得麦~ oh 14.0 神奇的定数 有紫白圣诞，有白系统Z，还有白bom。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。 出勤地点：上海朗玩Round1 速度：7 延迟：0 判定表示：2-B | 街机 | SEGA | MAIMAI | 舞萌 | 音乐游戏 | 音游 | 舞萌DX | AP",
+          "title": "【舞萌DX/六一儿童节特辑！】当我比赛中选取白bom,阁下又该如何应对呢？ Beat Of Mind(Re:MASTER)教学",
+          "url": "https://www.bilibili.com/video/BV13o7NzhEUM/",
+          "summary": "按照往常惯例，在6.1儿童节更新神秘乐曲， 前两次分别是紫玩具和红玩具。 这次也是根据群友的想法，制作了id61的曲目， 特别巧，不然我都没空去录素材（ bom真的是我心中的神谱之一， 我感觉这谱练多了越打越爽，配置多样好玩， 前半的协调段采音舒服，排键也很牛。 整首歌没有很多硬底力的东西强抬难度， 但是结尾3456号键小键盘+星星稍微有点点不喜欢。 但是对于普通玩家来讲不推荐吃分， 而且建议实力到了再来玩，不然会很坐牢！ 当然如果你要练来当绝活，那太好了（？ | 教学 | 神曲神谱 | 夜麻麻课堂 | 舞萌DX2024 | id61 | 儿童节快乐 | 拆解 | 谱面解析 | maimai | bom",
           "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
-          "source": "youtube",
-          "title": "【maimai MURASAKi PLUS】Beat Of Mind Re:Master(手元＆maimaiカメラ)【理論値ALLPERFECT】",
-          "url": "https://www.youtube.com/watch?v=iR_VVt9Yjio",
-          "summary": "Player：ほわいとからあげ(46K4R4) クラッキンＤＪの曲普通に好きで、いつかリマスターこないかな～って思ってたんですけど、 ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
+          "source": "bilibili",
+          "title": "【谱面确认】【MAIMAI DX】【 Beat Of Mind 】 Re : Master 14",
+          "url": "https://www.bilibili.com/video/BV1rBtLegEcN/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+%E8%AD%9C%E9%9D%A2%E3%83%87%E3%83%BC%E3%82%BF+%E8%AD%9C%E9%9D%A2%E3%83%BB%E3%82%B2%E3%83%BC%E3%83%A0%E9%9D%A2"
+        },
+        {
+          "source": "bilibili",
+          "title": "【谱面确认】【 MAIMAI DX 】【 Beat Of Mind 】 Re :Master 14",
+          "url": "https://www.bilibili.com/video/BV1rBtLegEcN/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=maimai+%E8%88%9E%E8%90%8CDX+Beat+Of+Mind+Re%3AMaster+14+%E8%B0%B1%E9%9D%A2+%E6%89%8B%E5%85%83+%E6%94%BB%E7%95%A5+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
@@ -1041,32 +1042,41 @@
           "search_url": "https://search.bilibili.com/all?keyword=maimai+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+%E8%AD%9C%E9%9D%A2%E6%94%BB%E7%95%A5+%E9%9B%A3%E6%89%80+%E9%85%8D%E7%BD%AE+%E5%80%8B%E4%BA%BA%E5%B7%AE"
         },
         {
-          "source": "youtube",
-          "title": "【maimaiでらっくす】Beat Of Mind Re MASTER AP+!!!『舞神への道#88』Re MASTER編",
-          "url": "https://www.youtube.com/watch?v=9ESmbX-TALg",
-          "summary": "2023年6/5達成！ 舞神14編3本目です！！ 真神狙いの時にお、何これ白譜面14あるやんなってみよ→え、全くわからんS、て感じ ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+chart+view"
-        },
-        {
-          "source": "youtube",
-          "title": "Beat Of Mind Re:MASTER AP【maimai】",
-          "url": "https://www.youtube.com/watch?v=75oca7BgMeE",
-          "summary": "アップロード : じょ ----------------------------------------------------------------- Twitter S.R. project → https://twitter.com/S_R_project_ あいす ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
-        },
-        {
-          "source": "youtube",
-          "title": "【maimai】Beat Of Mind(Re:MASTER) AP",
-          "url": "https://www.youtube.com/watch?v=waiok4Llak8",
+          "source": "bilibili",
+          "title": "【谱面确认】【MAIMAI DX 】【 Beat Of Mind 】 Re : Master 14",
+          "url": "https://www.bilibili.com/video/BV1rBtLegEcN/",
           "summary": "",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+Beat+Of+Mind+Re%3AMaster+AP+%E6%89%8B%E5%85%83+%E5%A4%96%E9%83%A8%E5%87%BA%E5%8A%9B"
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
+        },
+        {
+          "source": "bilibili",
+          "title": "【maimai/ 14 .0定数AP制霸】BOM 白谱 Lv. 14 AP手元（ Beat of Mind Re : MASTER ALL PERFECT）",
+          "url": "https://www.bilibili.com/video/BV1wL411h7Rx/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=Beat+Of+Mind+Re%3AMaster+14+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9+%E6%94%BB%E7%95%A5+%E6%89%8B%E5%85%83"
+        },
+        {
+          "source": "bilibili",
+          "title": "【舞萌/何意味】白bom/Beat Of Mind Re:MASTER 14 100.9090% 一万落AP",
+          "url": "https://www.bilibili.com/video/BV11q9zYbEZw/",
+          "summary": "AP游玩次数：15局 节奏有点神秘 稀里糊涂就ap了（ 听起来还是挺带感的 除了最后没有难点 流速8.0 判定显示2-E | 舞萌 | 音乐游戏 | MAIMAI | AP | 必剪创作 | 整点电子榨菜 | BeatOfMind | 整点电子榨菜第19期",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Beat+Of+Mind+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
+        },
+        {
+          "source": "bilibili",
+          "title": "[Crackin'DJ] Beat Of Mind ( Re :MASTER) ALL PERFECT+ [ Maimai MURASAKi+]",
+          "url": "https://www.bilibili.com/video/BV1WH4y197rC/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=maimai+%E8%88%9E%E8%90%8CDX+Beat+Of+Mind+Re%3AMaster+14+%E8%B0%B1%E9%9D%A2+%E6%89%8B%E5%85%83+%E6%94%BB%E7%95%A5+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
-      "tag_status": "no_evidence",
-      "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
-      "tag_scores": {}
+      "updated_at": "2026-07-25T09:21:53+08:00",
+      "tag_status": "done",
+      "tag_error": "",
+      "tag_rule_version": 11,
+      "tag_scores": {
+        "底力": 0.2589
+      }
     },
     "62:4": {
       "song_id": "62",
@@ -3669,73 +3679,38 @@
           "search_url": "https://gamerch.com/maimai/545589"
         },
         {
-          "source": "youtube",
-          "title": "【maimai】FEEL ALIVE MASTER AP",
-          "url": "https://www.youtube.com/watch?v=bP4Tnokj1NU",
-          "summary": "理論値記念にそのままの手元で撮りました。動画で低くなってるのは仕様です←",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+FEEL+ALIVE+Master+AP+%E6%89%8B%E5%85%83+%E5%A4%96%E9%83%A8%E5%87%BA%E5%8A%9B"
-        },
-        {
-          "source": "youtube",
-          "title": "maimai PLUS [MASTER] FEEL ALIVE",
-          "url": "https://www.youtube.com/watch?v=el_jtzBwdu8",
-          "summary": "FEEL ALIVE 紫 (10) ＞ (11) ＞ (12) BPM 162 maimai動画中 譜面確認用 share from niconico: ニコニコ動画より転載 ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+FEEL+ALIVE+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
+          "source": "bilibili",
+          "title": "【谱面确认】【MAIMAI DX】【FEEL ALIVE】 Master 13+",
+          "url": "https://www.bilibili.com/video/BV13DtpeLECP/",
+          "summary": "【谱面确认】【MAIMAI DX】【FEEL ALIVE】 Master 13+ | 音乐游戏 | 街机 | 游戏 | 演示 | 音游 | 谱面确认 | maimai",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+FEEL+ALIVE+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
-          "title": "【maimai谱面确认】（Master） FEEL ALIVE lv:13",
-          "url": "https://www.bilibili.com/video/BV1i541197j2/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Abilibili.com%2Fread+FEEL+ALIVE+Master+maimai+%E6%94%BB%E7%95%A5"
-        },
-        {
-          "source": "bilibili",
-          "title": "【maimai谱面确认】（ Master ） FEEL ALIVE lv: 13",
-          "url": "https://www.bilibili.com/video/BV1i541197j2/",
+          "title": "【这是哪门子 13 .7】 FEEL ALIVE （感受生命） Master13 + 全反ALL PERFECT",
+          "url": "https://www.bilibili.com/video/BV1Ck5R6AEcB/",
           "summary": "",
           "search_url": "https://search.bilibili.com/all?keyword=FEEL+ALIVE+Master+13%2B+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9+%E6%94%BB%E7%95%A5+%E6%89%8B%E5%85%83"
         },
         {
           "source": "bilibili",
-          "title": "【 maimai 谱面确认】（ Master ） FEEL ALIVE lv: 13",
-          "url": "https://www.bilibili.com/video/BV1i541197j2/",
+          "title": "【舞萌/ 13 +也许是地雷/上下镜像】感觉活着/ FEEL ALIVE MASTER 13 100.8965% AP",
+          "url": "https://www.bilibili.com/video/BV1dx4y1x7TF/",
           "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=maimai+%E8%88%9E%E8%90%8CDX+FEEL+ALIVE+Master+13%2B+%E8%B0%B1%E9%9D%A2+%E6%89%8B%E5%85%83+%E6%94%BB%E7%95%A5+%E9%9A%BE%E7%82%B9"
+          "search_url": "https://search.bilibili.com/all?keyword=FEEL+ALIVE+Master+13%2B+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9+%E6%94%BB%E7%95%A5+%E6%89%8B%E5%85%83"
         },
         {
           "source": "bilibili",
-          "title": "【谱面确认】【 MAIMAI DX 】【 FEEL ALIVE 】 Master 13 +",
-          "url": "https://www.bilibili.com/video/BV13DtpeLECP/",
+          "title": "【 舞萌 / 13 +也许是地雷/上下镜像】感觉活着/ FEEL ALIVE MASTER 13 100.8965% AP",
+          "url": "https://www.bilibili.com/video/BV1dx4y1x7TF/",
           "summary": "",
           "search_url": "https://search.bilibili.com/all?keyword=maimai+%E8%88%9E%E8%90%8CDX+FEEL+ALIVE+Master+13%2B+%E8%B0%B1%E9%9D%A2+%E6%89%8B%E5%85%83+%E6%94%BB%E7%95%A5+%E9%9A%BE%E7%82%B9"
-        },
-        {
-          "source": "youtube",
-          "title": "【AP★3】maimai DX UNiVERSE PLUS FEEL ALIVE MASTER (ST) 手元參考",
-          "url": "https://www.youtube.com/watch?v=q8xsk_x5r90",
-          "summary": "稍微要求硬實力跟地力特別要求滑鍵穩定度滑鍵超容易爆0:37秒處拉回去的Tap+BOTH+Tap容易爆跟水溝但這個多打就會穩有點需要 ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+FEEL+ALIVE+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
-        },
-        {
-          "source": "youtube",
-          "title": "【maimai&maimaiPLUS紫全理論値達成】FEEL ALIVE Master(手元のみ)【理論値ALLPERFECT】",
-          "url": "https://www.youtube.com/watch?v=GLVCETjn5Iw",
-          "summary": "Player：ほわいとからあげ(46K4R4) めちゃくちゃこじらせそうで怖くて触ってなかったんですけど、本格的にやろうって気合い ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+FEEL+ALIVE+Master+AP+%E6%89%8B%E5%85%83+%E5%A4%96%E9%83%A8%E5%87%BA%E5%8A%9B"
-        },
-        {
-          "source": "youtube",
-          "title": "【maimai&maimaiPLUS紫全理論値達成】FEEL ALIVE Master(手元＆maimaiカメラ)【理論値ALLPERFECT】",
-          "url": "https://www.youtube.com/watch?v=n3fDyyGDiUs",
-          "summary": "Player：ほわいとからあげ(46K4R4) めちゃくちゃこじらせそうで怖くて触ってなかったんですけど、本格的にやろうって気合い ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+FEEL+ALIVE+Master+AP+%E6%89%8B%E5%85%83+%E5%A4%96%E9%83%A8%E5%87%BA%E5%8A%9B"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
+      "updated_at": "2026-07-25T09:22:36+08:00",
       "tag_status": "no_evidence",
       "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
+      "tag_rule_version": 11,
       "tag_scores": {}
     },
     "131:2": {
@@ -4222,11 +4197,19 @@
         "break": 39,
         "total": 608
       },
-      "tags": [],
+      "tags": [
+        "手序"
+      ],
       "manual_tags": [],
-      "llm_tags": [],
-      "final_tags": [],
-      "tag_categories": {},
+      "llm_tags": [
+        "手序"
+      ],
+      "final_tags": [
+        "手序"
+      ],
+      "tag_categories": {
+        "手序": "综合类配置"
+      },
       "evidence": [
         {
           "source": "gamerch",
@@ -4244,59 +4227,33 @@
         },
         {
           "source": "bilibili",
-          "title": "【maimai】【谱面确认】 We Gonna Party 白谱Re:Master 13+",
-          "url": "https://www.bilibili.com/video/BV1EL4y137K7/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Abilibili.com%2Fvideo+We+Gonna+Party+Re%3AMaster+maimai"
-        },
-        {
-          "source": "bilibili",
-          "title": "【 maimai 】【谱面确认】 We Gonna Party 白谱Re:Master 13+",
-          "url": "https://www.bilibili.com/video/BV1EL4y137K7/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Agamerch.com%2Fmaimai+We+Gonna+Party+Re%3AMaster"
-        },
-        {
-          "source": "bilibili",
           "title": "【谱面确认】【MAIMAI DX】【We Gonna Party】 Re:Master 13+",
           "url": "https://www.bilibili.com/video/BV1nZt5eBEuW/",
-          "summary": "【谱面确认】【MAIMAI DX】【We Gonna Party】 Re:Master 13+ | 音乐游戏 | 街机 | 游戏 | 音游 | 演示 | 谱面确认",
+          "summary": "【谱面确认】【MAIMAI DX】【We Gonna Party】 Re:Master 13+ | 音乐游戏 | 街机 | 游戏 | 演示 | 音游 | 谱面确认",
           "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+We+Gonna+Party+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
-          "title": "【maimai】我们去派对 白谱 13+ 外录AP手元（We Gonna Party Re:MASTER ALL PERFECT）",
-          "url": "https://www.bilibili.com/video/BV1eY4y1T7ib/",
-          "summary": "神谱，打的很爽 哦耶 速度：7 延迟：0 判定表示：2-B | MAIMAI | 音乐游戏 | SEGA | 舞萌 | 音游 | maimaidx | 舞萌DX | maimai",
-          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+We+Gonna+Party+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
-        },
-        {
-          "source": "bilibili",
-          "title": "We Gonna Party Re : Master 难度手顺参考",
+          "title": "We Gonna Party Re:Master难度手顺参考",
           "url": "https://www.bilibili.com/video/BV1gw411a7B7/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=We+Gonna+Party+Re%3AMaster+13%2B+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9+%E6%94%BB%E7%95%A5+%E6%89%8B%E5%85%83"
-        },
-        {
-          "source": "bilibili",
-          "title": "We Gonna Party ( Re : MASTER ) ALL PERFECT+ [Maimai Splash]",
-          "url": "https://www.bilibili.com/video/BV1264y197ho/",
-          "summary": "",
+          "summary": "声明：本视频出现的手顺并不完全是官方手顺，部分手顺采用了敝人自己的手顺见解，还请见谅 没有绝对正确的手序，只有最适合自己的手顺。 视频中出现的红色tap/星星/touch为右手，蓝色tap/星星/touch为左手 神曲神谱 欢迎点歌，在能力范围内的都会尝试做的。本首为@YU_lining 点歌 | 教学 | 音乐游戏 | MAIMAI | Re:Master | 舞萌DX | 手顺 | We Gonna Party | 我们去派对 | 参考 | Cranky",
           "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+We+Gonna+Party+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
-          "title": "We Gonna Party ( Re : MASTER ) ALL PERFECT+ [ Maimai Splash]",
-          "url": "https://www.bilibili.com/video/BV1264y197ho/",
+          "title": "[13+5星最上位] We Gonna Party Re : MASTER 理论值&5星！！！！！",
+          "url": "https://www.bilibili.com/video/BV1jYw1zLEPN/",
           "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=maimai+We+Gonna+Party+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E6%94%BB%E7%95%A5+%E9%9B%A3%E6%89%80+%E9%85%8D%E7%BD%AE+%E5%80%8B%E4%BA%BA%E5%B7%AE"
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+We+Gonna+Party+Re%3AMASTER+ReMaster+%E7%99%BD%E8%B0%B1+%E7%99%BD+%E7%99%BD%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
-      "tag_status": "no_evidence",
-      "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
-      "tag_scores": {}
+      "updated_at": "2026-07-25T09:22:02+08:00",
+      "tag_status": "done",
+      "tag_error": "",
+      "tag_rule_version": 11,
+      "tag_scores": {
+        "手序": 0.6993
+      }
     },
     "134:3": {
       "song_id": "134",
@@ -5198,11 +5155,19 @@
         "break": 2,
         "total": 655
       },
-      "tags": [],
+      "tags": [
+        "手序"
+      ],
       "manual_tags": [],
-      "llm_tags": [],
-      "final_tags": [],
-      "tag_categories": {},
+      "llm_tags": [
+        "手序"
+      ],
+      "final_tags": [
+        "手序"
+      ],
+      "tag_categories": {
+        "手序": "综合类配置"
+      },
       "evidence": [
         {
           "source": "gamerch",
@@ -5215,15 +5180,52 @@
           "source": "gamerch",
           "title": "Fragrance 譜面データ",
           "url": "https://gamerch.com/maimai/533411",
-          "summary": "譜面データ Master 定数 14.2 BPM 180 総数 294 Tap 230 Hold 50 Slide 12 Touch 2 Break 188000 ノーツ密度 2.94/秒",
+          "summary": "譜面データ Master 定数 14.2 BPM 180 総数 655 Tap 651 Hold 0 Slide 2 Touch 0 Break 2 ノーツ密度 6.55/秒",
           "search_url": "https://gamerch.com/maimai/545589"
+        },
+        {
+          "source": "bilibili",
+          "title": "【舞萌DX谱面确认】【全反镜像】Fragrance MASTER 14",
+          "url": "https://www.bilibili.com/video/BV1t6421f7eg/",
+          "summary": "【舞萌DX谱面确认】Fragrance MASTER 14 1P点歌设置：流速8.00，全反镜像，判定音效是木块 2P点歌设置：流速7.00，全反镜像 | MAIMAI | 音乐游戏 | 舞萌 | 香水 | 演示 | 真极 | 真舞舞 | AP | 真神 | Fragrance",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Fragrance+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
+        },
+        {
+          "source": "bilibili",
+          "title": "【maimai】真神确定！！ 香水 紫谱 14 理论值AP手元（Fragrance Master ALL PERFECT+）",
+          "url": "https://www.bilibili.com/video/BV1oq4y1r7hC/",
+          "summary": "把13.8收完之后太空跟我讲，要不我去拿块真神吧，一块钱两块钱都收了，不拿太可惜了 然后就去试了试，花了三天时间打了100pc收了 第一次推到一粉大概只花了30pc，然后就开始来了440combo附近的致命手癖，直到最后几把那个地方转内屏才解 不过收了就行！还是很开心的，是目前上海第二位神牌确认者 总体来说谱面比较意识流，很多地方都要研究读谱和节奏，研究之后还要花时间去适应，是一个很需要磨时间的谱面 2p会附上内录，节奏音十分清晰，可以用来参考和记节奏 其次香水是个很考验左手的谱面，如果你是右撇子的话，左右翻转或者180度翻转会好很多 最后感谢直播间观看我推AP的朋友们！！ 速度：7 延迟：0 判定表示：2-B | 舞萌 | 音乐游戏 | 音游 | 舞萌DX | maimai | 打卡挑战",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Fragrance+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
+        },
+        {
+          "source": "bilibili",
+          "title": "【 maimai 手序分解】 Fragrance 【 MASTER 】",
+          "url": "https://www.bilibili.com/video/BV1NM4y1s7cT/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=maimai+Fragrance+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+14+%E8%AD%9C%E9%9D%A2%E6%94%BB%E7%95%A5+%E9%9B%A3%E6%89%80+%E9%85%8D%E7%BD%AE+%E5%80%8B%E4%BA%BA%E5%B7%AE"
+        },
+        {
+          "source": "bilibili",
+          "title": "【 maimai 节奏谱】 Fragrance MASTER 紫 香水",
+          "url": "https://www.bilibili.com/video/BV1vh411B7Su/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=maimai+Fragrance+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+14+%E8%AD%9C%E9%9D%A2%E6%94%BB%E7%95%A5+%E9%9B%A3%E6%89%80+%E9%85%8D%E7%BD%AE+%E5%80%8B%E4%BA%BA%E5%B7%AE"
+        },
+        {
+          "source": "bilibili",
+          "title": "【maimai/真神确定】6000粉丝纪念#2 香水（左右反）/ Fragrance MASTER 紫谱 Lv. 14 理论值 （拼接版）",
+          "url": "https://www.bilibili.com/video/BV1v6YgewEUp/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Fragrance+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
-      "tag_status": "no_evidence",
-      "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
-      "tag_scores": {}
+      "updated_at": "2026-07-25T09:21:39+08:00",
+      "tag_status": "done",
+      "tag_error": "",
+      "tag_rule_version": 11,
+      "tag_scores": {
+        "手序": 0.6993
+      }
     },
     "143:4": {
       "song_id": "143",
@@ -5390,10 +5392,10 @@
           "search_url": "https://gamerch.com/maimai/545589"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
+      "updated_at": "2026-07-25T09:22:45+08:00",
       "tag_status": "no_evidence",
       "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
+      "tag_rule_version": 11,
       "tag_scores": {}
     },
     "145:4": {
@@ -9801,11 +9803,19 @@
         "break": 49,
         "total": 586
       },
-      "tags": [],
+      "tags": [
+        "手序"
+      ],
       "manual_tags": [],
-      "llm_tags": [],
-      "final_tags": [],
-      "tag_categories": {},
+      "llm_tags": [
+        "手序"
+      ],
+      "final_tags": [
+        "手序"
+      ],
+      "tag_categories": {
+        "手序": "综合类配置"
+      },
       "evidence": [
         {
           "source": "gamerch",
@@ -9816,73 +9826,33 @@
         },
         {
           "source": "bilibili",
-          "title": "【maimai】【谱面确认】 Beat of getting entangled 紫谱 Master 13+",
-          "url": "https://www.bilibili.com/video/BV1HY4y1C7wF/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E3%83%87%E3%83%BC%E3%82%BF+%E8%AD%9C%E9%9D%A2%E3%83%BB%E3%82%B2%E3%83%BC%E3%83%A0%E9%9D%A2"
-        },
-        {
-          "source": "bilibili",
-          "title": "【谱面确认】【MAIMAI DX】【 Beat of getting entangled 】 Master 13+",
+          "title": "【谱面确认】【MAIMAI DX】【Beat of getting entangled】 Master 13+",
           "url": "https://www.bilibili.com/video/BV1HS411A71q/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E3%83%87%E3%83%BC%E3%82%BF+%E8%AD%9C%E9%9D%A2%E3%83%BB%E3%82%B2%E3%83%BC%E3%83%A0%E9%9D%A2"
-        },
-        {
-          "source": "bilibili",
-          "title": "[单手 外录舞萌DX]Beat of getting entangled ST MASTER SSS+ (Player: Anthoney)",
-          "url": "https://www.bilibili.com/video/BV1QQ4y1L7KM/",
-          "summary": "Player:Anthoney (twitter→@DJ_CELICA) ※片腕垢「ShikaR」を使用しています。 内訳(8-1-0)で1つブレイクピンクw これでLv13+片腕SSS+14譜面！！！！！！！！！！ 100回以上かかりました…頑張ったー！！！！！！！！！！ YouTube频道：https://www.youtube.com/channel/UCpv2UG-ynIHosWUPgUYqw4w | 舞萌 | 音游 | maimai",
+          "summary": "【谱面确认】【MAIMAI DX】【Beat of getting entangled】 Master 13+ | 音乐游戏 | 街机 | 游戏 | 音游 | 演示 | 谱面确认 | maimai",
           "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
-          "title": "Beat of getting entangled MASTER AP被震成0-3-0元",
-          "url": "https://www.bilibili.com/video/BV1bkwEzWEJh/",
+          "title": "【maimai】BOGE/波哥 MASTER 13+ 外录AP手元( Beat of getting entangled )",
+          "url": "https://www.bilibili.com/video/BV1mq4y1D7rs/",
           "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E3%83%87%E3%83%BC%E3%82%BF+%E8%AD%9C%E9%9D%A2%E3%83%BB%E3%82%B2%E3%83%BC%E3%83%A0%E9%9D%A2"
-        },
-        {
-          "source": "bilibili",
-          "title": "【 maimai 】 Beat of getting entangled 标准紫谱 Lv.13+ AP",
-          "url": "https://www.bilibili.com/video/BV1Xb4y1G7Pg/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=maimai+Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E6%94%BB%E7%95%A5+%E9%9B%A3%E6%89%80+%E9%85%8D%E7%BD%AE+%E5%80%8B%E4%BA%BA%E5%B7%AE"
-        },
-        {
-          "source": "bilibili",
-          "title": "【舞萌DX】Beat of getting entangled Master13＋ 100.6127%",
-          "url": "https://www.bilibili.com/video/BV1w84y1M7GU/",
-          "summary": "MAIMAI | 音乐游戏 | 音乐 | 菜鸡",
           "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
-          "title": "[ Maimai ] Beat of getting entangled Master 13+ 100.0757%",
-          "url": "https://www.bilibili.com/video/BV1xt4y1N7dF/",
+          "title": "【 舞萌 /13+地雷/前半段手序谨慎参考】胡辣汤/ Beat of getting entangled MASTER 13+ 100.9489% AP",
+          "url": "https://www.bilibili.com/video/BV1Tw4m1k7Ua/",
           "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=maimai+Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E6%94%BB%E7%95%A5+%E9%9B%A3%E6%89%80+%E9%85%8D%E7%BD%AE+%E5%80%8B%E4%BA%BA%E5%B7%AE"
-        },
-        {
-          "source": "bilibili",
-          "title": "【maimaiでらっくす】 Beat of getting entangled ( Master 13+) ALL PERFECT",
-          "url": "https://www.bilibili.com/video/BV1Tx421C7Fm/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E3%83%87%E3%83%BC%E3%82%BF+%E8%AD%9C%E9%9D%A2%E3%83%BB%E3%82%B2%E3%83%BC%E3%83%A0%E9%9D%A2"
-        },
-        {
-          "source": "bilibili",
-          "title": "【舞萌DX 2024】（附解析教学） Beat of getting entangled MASTER 13+ （拼接ALL PERFECT）",
-          "url": "https://www.bilibili.com/video/BV1cRjXz5EkK/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E3%83%87%E3%83%BC%E3%82%BF+%E8%AD%9C%E9%9D%A2%E3%83%BB%E3%82%B2%E3%83%BC%E3%83%A0%E9%9D%A2"
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Beat+of+getting+entangled+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
-      "tag_status": "no_evidence",
-      "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
-      "tag_scores": {}
+      "updated_at": "2026-07-25T09:22:04+08:00",
+      "tag_status": "done",
+      "tag_error": "",
+      "tag_rule_version": 11,
+      "tag_scores": {
+        "手序": 0.6993
+      }
     },
     "240:4": {
       "song_id": "240",
@@ -10951,10 +10921,10 @@
         },
         {
           "source": "bilibili",
-          "title": "【谱面确认】【MAIMAI DX】【 Nyan Cat EX】 Master 13+",
+          "title": "【谱面确认】【MAIMAI DX】【Nyan Cat EX】 Master 13+",
           "url": "https://www.bilibili.com/video/BV17T421Y7Gy/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Abilibili.com%2Fvideo+Nyan+Cat+EX+Master+maimai"
+          "summary": "【谱面确认】【MAIMAI DX】【Nyan Cat EX】 Master 13+ | 游戏 | 音乐游戏 | 街机 | 音游 | 演示 | 谱面确认 | maimai",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Nyan+Cat+EX+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
@@ -10965,58 +10935,51 @@
         },
         {
           "source": "bilibili",
-          "title": "【谱面确认】【 MAIMAI DX】【 Nyan Cat EX】 Master 13+",
-          "url": "https://www.bilibili.com/video/BV17T421Y7Gy/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Agamerch.com%2Fmaimai+Nyan+Cat+EX+Master"
-        },
-        {
-          "source": "bilibili",
-          "title": "【谱面确认】【MAIMAI DX】【 Nyan Cat EX 】 Master 13 +",
-          "url": "https://www.bilibili.com/video/BV17T421Y7Gy/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=Nyan+Cat+EX+Master+13%2B+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9+%E6%94%BB%E7%95%A5+%E6%89%8B%E5%85%83"
-        },
-        {
-          "source": "bilibili",
-          "title": "【谱面确认】【MAIMAI DX 】【 Nyan Cat EX 】 Master 13 +",
-          "url": "https://www.bilibili.com/video/BV17T421Y7Gy/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Nyan+Cat+EX+Master+13%2B+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9+%E7%88%86%E5%8F%91+%E5%BA%95%E5%8A%9B+%E6%89%8B%E9%80%9F"
-        },
-        {
-          "source": "bilibili",
-          "title": "【 谱面 确认】【MAIMAI DX 】【 Nyan Cat EX 】 Master 13+",
-          "url": "https://www.bilibili.com/video/BV17T421Y7Gy/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Nyan+Cat+EX+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
-        },
-        {
-          "source": "bilibili",
-          "title": "【 谱面 确认】【MAIMAI DX】【 Nyan Cat EX 】 Master 13 +",
-          "url": "https://www.bilibili.com/video/BV17T421Y7Gy/",
+          "title": "【舞萌/也许能当做吃分 13 +】彩虹猫/ Nyan Cat EX MASTER 13 + 100.9625% AP",
+          "url": "https://www.bilibili.com/video/BV1mr421M7k8/",
           "summary": "",
           "search_url": "https://search.bilibili.com/all?keyword=Nyan+Cat+EX+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E3%83%87%E3%83%BC%E3%82%BF+%E8%AD%9C%E9%9D%A2%E3%83%BB%E3%82%B2%E3%83%BC%E3%83%A0%E9%9D%A2"
         },
         {
           "source": "bilibili",
-          "title": "【maimai节奏谱】 Nyan Cat EX (MASTER Lv.13+) 彩虹猫",
-          "url": "https://www.bilibili.com/video/BV1ee411r7Lz/",
+          "title": "【 舞萌 /也许能当做吃分 13 +】彩虹猫/ Nyan Cat EX MASTER 13 + 100.9625% AP",
+          "url": "https://www.bilibili.com/video/BV1mr421M7k8/",
           "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Abilibili.com%2Fvideo+Nyan+Cat+EX+Master+maimai"
+          "search_url": "https://search.bilibili.com/all?keyword=maimai+%E8%88%9E%E8%90%8CDX+Nyan+Cat+EX+Master+13%2B+%E8%B0%B1%E9%9D%A2+%E6%89%8B%E5%85%83+%E6%94%BB%E7%95%A5+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
-          "title": "【 maimai 节奏谱】 Nyan Cat EX (MASTER Lv.13+) 彩虹猫",
-          "url": "https://www.bilibili.com/video/BV1ee411r7Lz/",
+          "title": "【maimai/13+吃分推荐？】 彩虹猫/ Nyan Cat EX MASTER 紫谱 Lv.13+ ALL PERFECT",
+          "url": "https://www.bilibili.com/video/BV1uNB4BEEwe/",
           "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Agamerch.com%2Fmaimai+Nyan+Cat+EX+Master"
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Nyan+Cat+EX+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
+        },
+        {
+          "source": "bilibili",
+          "title": "【 maimai /13+吃分推荐？】 彩虹猫/ Nyan Cat EX MASTER 紫谱 Lv.13+ ALL PERFECT",
+          "url": "https://www.bilibili.com/video/BV1uNB4BEEwe/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=maimai+Nyan+Cat+EX+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E6%94%BB%E7%95%A5+%E9%9B%A3%E6%89%80+%E9%85%8D%E7%BD%AE+%E5%80%8B%E4%BA%BA%E5%B7%AE"
+        },
+        {
+          "source": "bilibili",
+          "title": "【maimai/ 13 +吃分推荐？】 彩虹猫/ Nyan Cat EX MASTER 紫谱 Lv. 13 + ALL PERFECT",
+          "url": "https://www.bilibili.com/video/BV1uNB4BEEwe/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=Nyan+Cat+EX+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E3%83%87%E3%83%BC%E3%82%BF+%E8%AD%9C%E9%9D%A2%E3%83%BB%E3%82%B2%E3%83%BC%E3%83%A0%E9%9D%A2"
+        },
+        {
+          "source": "bilibili",
+          "title": "【 maimai / 13 +吃分推荐？】 彩虹猫/ Nyan Cat EX MASTER 紫谱 Lv. 13 + ALL PERFECT",
+          "url": "https://www.bilibili.com/video/BV1uNB4BEEwe/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=maimai+%E8%88%9E%E8%90%8CDX+Nyan+Cat+EX+Master+13%2B+%E8%B0%B1%E9%9D%A2+%E6%89%8B%E5%85%83+%E6%94%BB%E7%95%A5+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
+      "updated_at": "2026-07-25T09:22:15+08:00",
       "tag_status": "no_evidence",
       "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
+      "tag_rule_version": 11,
       "tag_scores": {}
     },
     "259:3": {
@@ -11824,10 +11787,10 @@
           "search_url": "https://gamerch.com/maimai/545589"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
+      "updated_at": "2026-07-25T09:22:27+08:00",
       "tag_status": "no_evidence",
       "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
+      "tag_rule_version": 11,
       "tag_scores": {}
     },
     "269:2": {
@@ -19053,11 +19016,19 @@
         "break": 17,
         "total": 850
       },
-      "tags": [],
+      "tags": [
+        "手序"
+      ],
       "manual_tags": [],
-      "llm_tags": [],
-      "final_tags": [],
-      "tag_categories": {},
+      "llm_tags": [
+        "手序"
+      ],
+      "final_tags": [
+        "手序"
+      ],
+      "tag_categories": {
+        "手序": "综合类配置"
+      },
       "evidence": [
         {
           "source": "gamerch",
@@ -19065,13 +19036,22 @@
           "url": "https://gamerch.com/maimai/533468",
           "summary": "譜面データ Master 定数 14.0 BPM 142 総数 538 Tap 388 Hold 81 Slide 59 Touch 0 Break 10 ノーツ密度 4.24/秒",
           "search_url": "https://gamerch.com/maimai/545589"
+        },
+        {
+          "source": "bilibili",
+          "title": "【maimai/运指参考】幸隐 紫谱 14 理论值AP( 幸せになれる隠しコマンドがあるらしい /似乎有让人幸福的隐藏指令 MASTER ALL PERFECT+)",
+          "url": "https://www.bilibili.com/video/BV1or4y1U7gW/",
+          "summary": "",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+%E5%B9%B8%E3%81%9B%E3%81%AB%E3%81%AA%E3%82%8C%E3%82%8B%E9%9A%A0%E3%81%97%E3%82%B3%E3%83%9E%E3%83%B3%E3%83%89%E3%81%8C%E3%81%82%E3%82%8B%E3%82%89%E3%81%97%E3%81%84+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
-      "tag_status": "no_evidence",
-      "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
-      "tag_scores": {}
+      "updated_at": "2026-07-25T09:21:55+08:00",
+      "tag_status": "done",
+      "tag_error": "",
+      "tag_rule_version": 11,
+      "tag_scores": {
+        "手序": 0.6993
+      }
     },
     "434:3": {
       "song_id": "434",
@@ -40145,11 +40125,19 @@
         "break": 28,
         "total": 487
       },
-      "tags": [],
+      "tags": [
+        "跳拍"
+      ],
       "manual_tags": [],
-      "llm_tags": [],
-      "final_tags": [],
-      "tag_categories": {},
+      "llm_tags": [
+        "跳拍"
+      ],
+      "final_tags": [
+        "跳拍"
+      ],
+      "tag_categories": {
+        "跳拍": "节奏类配置"
+      },
       "evidence": [
         {
           "source": "gamerch",
@@ -40160,73 +40148,33 @@
         },
         {
           "source": "bilibili",
-          "title": "【舞萌DX谱面确认】【上下镜像】 Altale MASTER 13+",
-          "url": "https://www.bilibili.com/video/BV1RdaCz1Edz/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Abilibili.com%2Fread+Altale+Master+maimai+%E6%94%BB%E7%95%A5"
-        },
-        {
-          "source": "bilibili",
           "title": "【谱面确认】【MAIMAI DX】【Altale】 Master 13",
           "url": "https://www.bilibili.com/video/BV1kR4y1j7t2/",
-          "summary": "【谱面确认】【MAIMAI DX】【Altale】 Master 13 | 音乐游戏 | 街机 | 游戏 | 音游 | 演示 | 谱面确认 | maimai | 打卡挑战",
+          "summary": "【谱面确认】【MAIMAI DX】【Altale】 Master 13 | 音乐游戏 | 街机 | 游戏 | 演示 | 音游 | 谱面确认 | maimai | 打卡挑战",
           "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Altale+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
-        },
-        {
-          "source": "bilibili",
-          "title": "maimai altale /阿泰尔 master 13 上下翻转 100.4自检手元",
-          "url": "https://www.bilibili.com/video/BV1da4y1r7dv/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Abilibili.com%2Fvideo+Altale+Master+maimai"
-        },
-        {
-          "source": "bilibili",
-          "title": "【 谱面 确认】【 MAIMAI DX 】【 Altale 】 Master 13 +",
-          "url": "https://www.bilibili.com/video/BV1ucpNzqE9V/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=maimai+%E8%88%9E%E8%90%8CDX+Altale+Master+13%2B+%E8%B0%B1%E9%9D%A2+%E6%89%8B%E5%85%83+%E6%94%BB%E7%95%A5+%E9%9A%BE%E7%82%B9"
-        },
-        {
-          "source": "bilibili",
-          "title": "[Maimai] 附解析AP 手元 听说你不会慢星星2 Altale Master13 +",
-          "url": "https://www.bilibili.com/video/BV1QPC6YyETu/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=Altale+Master+13%2B+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9+%E6%94%BB%E7%95%A5+%E6%89%8B%E5%85%83"
         },
         {
           "source": "bilibili",
           "title": "【舞萌/13+吃分推荐】阿泰尔/Altale MASTER 13+ 100.9553% AP",
           "url": "https://www.bilibili.com/video/BV1fsWAedEeY/",
-          "summary": "优秀的谱面 流速8.0 判定显示2-E | 万物皆可游戏 | 音乐游戏 | 舞萌 | MAIMAI | AP | Altale | 必剪创作",
+          "summary": "优秀的谱面 流速8.0 判定显示2-E | 万物皆可游戏 | MAIMAI | 舞萌 | 音乐游戏 | AP | Altale | 必剪创作",
           "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Altale+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
           "source": "bilibili",
-          "title": "【 maimai 】阿泰尔 Altale Lv.13 理论值AP手元（MASTER ALL PERFECT+）",
-          "url": "https://www.bilibili.com/video/BV1HF411D78R/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=site%3Agamerch.com%2Fmaimai+Altale+Master"
-        },
-        {
-          "source": "bilibili",
-          "title": "【maimai】阿泰尔 Altale Lv. 13 理论值AP手元（ MASTER ALL PERFECT+）",
-          "url": "https://www.bilibili.com/video/BV1HF411D78R/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Altale+Master+13%2B+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9+%E7%88%86%E5%8F%91+%E5%BA%95%E5%8A%9B+%E6%89%8B%E9%80%9F"
-        },
-        {
-          "source": "bilibili",
-          "title": "【 maimai 】阿泰尔 Altale Lv.13 理论值AP手元（ MASTER ALL PERFECT+）",
-          "url": "https://www.bilibili.com/video/BV1HF411D78R/",
-          "summary": "",
-          "search_url": "https://search.bilibili.com/all?keyword=maimai+Altale+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+%E3%83%88%E3%83%AA%E3%83%AB+%E4%B9%B1%E6%89%93+%E7%B8%A6%E9%80%A3+%E3%82%B9%E3%83%A9%E3%82%A4%E3%83%89"
+          "title": "【maimai/13+吃分推荐】阿泰尔/Altale MASTER 紫谱 Lv.13+ ALL PERFECT",
+          "url": "https://www.bilibili.com/video/BV15F4m177KW/",
+          "summary": "100.9732ap，还可以 中间有变奏，不过要记住大部分时间都是三下tap启动一次星星 跳拍那里我没有太好的解法，是扫过去的 2024版本升级为13.7，更是吃分推荐了 | 削除 | MAIMAI | 舞萌dx2023 | AP | Altale | 吃分 | 必剪创作",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+Altale+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
-      "tag_status": "no_evidence",
-      "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
-      "tag_scores": {}
+      "updated_at": "2026-07-25T09:22:39+08:00",
+      "tag_status": "done",
+      "tag_error": "",
+      "tag_rule_version": 11,
+      "tag_scores": {
+        "跳拍": 0.8624
+      }
     },
     "838:4": {
       "song_id": "838",
@@ -59225,11 +59173,27 @@
         "break": 66,
         "total": 676
       },
-      "tags": [],
+      "tags": [
+        "交互",
+        "管子",
+        "飞手"
+      ],
       "manual_tags": [],
-      "llm_tags": [],
-      "final_tags": [],
-      "tag_categories": {},
+      "llm_tags": [
+        "交互",
+        "管子",
+        "飞手"
+      ],
+      "final_tags": [
+        "交互",
+        "管子",
+        "飞手"
+      ],
+      "tag_categories": {
+        "交互": "键盘类配置",
+        "管子": "滑键类配置",
+        "飞手": "键盘类配置"
+      },
       "evidence": [
         {
           "source": "gamerch",
@@ -59239,46 +59203,29 @@
           "search_url": "https://gamerch.com/maimai/545589"
         },
         {
-          "source": "youtube",
-          "title": "[maimai universe+]もぺもぺ Master譜面（13+）［SSS］",
-          "url": "https://www.youtube.com/watch?v=AkU3oiUwOQ8",
-          "summary": "",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+%E3%82%82%E3%81%BA%E3%82%82%E3%81%BA+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
+          "source": "bilibili",
+          "title": "【舞萌/13+吃分推荐？】mopemope/もぺもぺ MASTER 13+ 100.9204% AP",
+          "url": "https://www.bilibili.com/video/BV1Lt42137tf/",
+          "summary": "我感觉这个真的特别简单 甚至是我第一个鸟的13.9 唯一的难点可能就是管子交互那段？ 放烟花那段简单记忆一下就不会出错了 流速8.0 判定显示2-E | 音乐游戏 | MAIMAI | 音游 | 毛八毛八 | 启动！ | AP | leaf | 小蓝花 | 必剪创作",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+%E3%82%82%E3%81%BA%E3%82%82%E3%81%BA+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         },
         {
-          "source": "youtube",
-          "title": "【maimaiでらっくすSplashPLUS】もぺもぺ でらっくす譜面 EXPERT ALL PERFECT 【直撮り】",
-          "url": "https://www.youtube.com/watch?v=eNm4RpamwiE",
-          "summary": "リクエスト！今回は赤譜面！ 箇所によっては正直MASTERより難しいと思います、、、 他のmaimaiプレイ動画をみたい場合は ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+%E3%82%82%E3%81%BA%E3%82%82%E3%81%BA+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
-        },
-        {
-          "source": "youtube",
-          "title": "[Maimaiでらっくす] もぺもぺ AP [Master 13+]",
-          "url": "https://www.youtube.com/watch?v=ShaPABk0m1Q",
-          "summary": "maimai #maimaiでらっくす Maimai PRiSM PLUS 2025.09.18 TAP SPEED 8.0, TOUCH SPEED 8.5, SLIDE TIMING 0.",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+%E3%82%82%E3%81%BA%E3%82%82%E3%81%BA+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
-        },
-        {
-          "source": "youtube",
-          "title": "[Maimai] もぺもぺ SSS+ FC+ [Master 13+]",
-          "url": "https://www.youtube.com/watch?v=f6itS8Rawzk",
-          "summary": "maimai #maimaiでらっくす Maimai BUDDiES 2024.05.28 TAP SPEED 8.25, TOUCH SPEED 8.5, SLIDE TIMING 0.",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+%E3%82%82%E3%81%BA%E3%82%82%E3%81%BA+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
-        },
-        {
-          "source": "youtube",
-          "title": "[直撮りMaimai Splash+] もぺもぺ (MASTER/13+) ALL PERFECT *60fps*",
-          "url": "https://www.youtube.com/watch?v=mxTdC6BK358",
-          "summary": "Maimai でらっくす Splash plus もぺもぺ / LeaF & Optie player : NICHAN.T (ニチャンテ)",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+%E3%82%82%E3%81%BA%E3%82%82%E3%81%BA+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
+          "source": "bilibili",
+          "title": "【maimai/13+吃分推荐】 mopemope/もぺもぺ MASTER 紫谱 Lv.13+ ALL PERFECT",
+          "url": "https://www.bilibili.com/video/BV1Kb421z7D8/",
+          "summary": "100.9621ap，很不错 整体其实不算难，最难的点就是管子交互 绝赞段读懂星星轨迹就好，比想象的简单 最后是8下左手起200bpm的16分位移交互，但是位置比较怪 | 音乐游戏 | 推荐 | MAIMAI | もぺもぺ | 舞萌dx2023 | AP | 自主规制 | LeaF | 吃分",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+%E3%82%82%E3%81%BA%E3%82%82%E3%81%BA+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+13%2B+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
-      "tag_status": "no_evidence",
-      "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
-      "tag_scores": {}
+      "updated_at": "2026-07-25T09:21:59+08:00",
+      "tag_status": "done",
+      "tag_error": "",
+      "tag_rule_version": 11,
+      "tag_scores": {
+        "交互": 1.2396,
+        "管子": 0.9218,
+        "飞手": 0.7152
+      }
     },
     "11283:3": {
       "song_id": "11283",
@@ -62387,36 +62334,35 @@
         "break": 55,
         "total": 971
       },
-      "tags": [],
+      "tags": [
+        "双押"
+      ],
       "manual_tags": [],
       "llm_tags": [
-        "爆发",
-        "手速",
-        "底力"
+        "双押"
       ],
-      "final_tags": [],
-      "tag_categories": {},
+      "final_tags": [
+        "双押"
+      ],
+      "tag_categories": {
+        "双押": "键盘类配置"
+      },
       "evidence": [
         {
-          "source": "youtube",
-          "title": "【maimai外部出力】 竹 MASTER AP",
-          "url": "https://www.youtube.com/watch?v=Gr5hfH5GUr0",
-          "summary": "アップロード : あいす なんで13+なのかわからん 蒼穹舞楽よりむずい 外部出力動画の利用はご自由にどうぞ(解説動画などにもぜひ ...",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+%E7%AB%B9+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+14+%E8%AD%9C%E9%9D%A2%E7%A2%BA%E8%AA%8D"
-        },
-        {
-          "source": "youtube",
-          "title": "［maimai］竹 MASTER 14 初S+!!!",
-          "url": "https://www.youtube.com/watch?v=N9brnSzvETI",
-          "summary": "tap:6.5 touch:7.0 slide:0.0.",
-          "search_url": "https://www.youtube.com/results?search_query=maimai+%E7%AB%B9+Master+14+ALL+PERFECT"
+          "source": "bilibili",
+          "title": "【maimai】竹 紫谱 Lv.13+ AP手元（MASTER ALL PERFECT）",
+          "url": "https://www.bilibili.com/video/BV1qv4y1B7DN/",
+          "summary": "非常有艺术感的谱面，有很多动作押和pv押，还是比较有意思的 就是记忆点比较多，很吃熟悉度，多打还是蛮容易的 AP难度大概在13.9比较下位，难点是结尾的横向双押阵硬扛比较吃地力 出勤地点：环游嘉年华上海环球港店 速度：7 延迟：0 判定表示：2-B | SEGA | MAIMAI | 舞萌 | 音乐游戏 | 音游 | maimaidx | 舞萌DX | 立秋 | maimai",
+          "search_url": "https://search.bilibili.com/all?keyword=%E8%88%9E%E8%90%8CDX+%E7%AB%B9+MASTER+%E7%B4%AB%E8%B0%B1+%E7%B4%AB+%E7%B4%AB%E8%B0%B1%E9%9D%A2+14+AP+%E6%89%8B%E5%85%83+%E9%85%8D%E7%BD%AE+%E9%9A%BE%E7%82%B9"
         }
       ],
-      "updated_at": "2026-07-25T09:21:17+08:00",
-      "tag_status": "no_evidence",
-      "tag_error": "资料不足，未抽取到足够可信的难点标签",
-      "tag_rule_version": 0,
-      "tag_scores": {}
+      "updated_at": "2026-07-25T09:21:40+08:00",
+      "tag_status": "done",
+      "tag_error": "",
+      "tag_rule_version": 11,
+      "tag_scores": {
+        "双押": 0.6843
+      }
     },
     "11331:3": {
       "song_id": "11331",
@@ -95234,7 +95180,7 @@
       }
     }
   },
-  "updated_at": "2026-07-25T09:21:17+08:00",
+  "updated_at": "2026-07-25T09:22:45+08:00",
   "tag_weights": {
     "死镰": 1.0,
     "如龙": 0.98,
