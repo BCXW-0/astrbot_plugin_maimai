@@ -369,11 +369,17 @@ button:hover {{ background: #2447c4; }}
         if not isinstance(chart, dict):
             return None
         chart["manual_tags"] = manual_tags
+        from .chart_tags.rule_tags import select_final_tags, tag_weight
         llm_tags = filter_allowed_tags(chart.get("llm_tags", []))
-        final_tags = filter_allowed_tags([*llm_tags, *manual_tags])
+        base_scores = chart.get("tag_scores") if isinstance(chart.get("tag_scores"), dict) else {}
+        score_map = {tag: float(base_scores.get(tag, tag_weight(tag))) for tag in [*llm_tags, *manual_tags]}
+        for tag in manual_tags:
+            score_map[tag] = max(score_map.get(tag, 0.0), tag_weight(tag) * 1.25)
+        final_tags, tag_scores = select_final_tags(score_map, manual_tags)
         chart["llm_tags"] = llm_tags
         chart["final_tags"] = final_tags
         chart["tags"] = final_tags
+        chart["tag_scores"] = tag_scores
         chart["tag_categories"] = {tag: TAG_CATEGORIES[tag] for tag in final_tags if tag in TAG_CATEGORIES}
         if final_tags:
             chart["tag_status"] = "done"
@@ -401,6 +407,7 @@ button:hover {{ background: #2447c4; }}
             "manual_tags": manual_tags,
             "llm_tags": llm_tags,
             "final_tags": final_tags,
+            "tag_scores": chart.get("tag_scores") if isinstance(chart.get("tag_scores"), dict) else {},
             "tag_status": chart.get("tag_status", ""),
             "tag_error": chart.get("tag_error", ""),
         }

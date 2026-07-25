@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-1.7.2-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-1.7.3-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -24,7 +24,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 - 保留查歌 / 查分 / B50 / 定数表 / 完成表 / 猜歌
 - 移除别名投票、别名推送、机厅排卡
 - 增加水鱼 Import-Token 绑定、SGWCMAID 同步、吃分推荐、锐评人格 WebUI、谱面标签
-- `1.7.x`：`舞萌体检`、`舞萌初始化`（一次完成曲库+别名+定数表+完成表并热加载）、分层帮助、我的舞萌、目标推分与打卡；`1.7.2` 锐评 B50 含金量与提示词重构
+- `1.7.x`：`舞萌体检`、`舞萌初始化`（一次完成曲库+别名+定数表+完成表并热加载）、分层帮助、我的舞萌、目标推分与打卡；`1.7.2` 锐评 B50 含金量与提示词重构；`1.7.3` 谱面标签权重与证据源分层
 
 > 纯净仓库不含完整 `static/mai/` 资源包，部署后需自备静态资源并执行初始化。
 
@@ -164,8 +164,15 @@ Import-Token 请用户自行 `绑定水鱼`，不要写进仓库。
 http://127.0.0.1:8796/?token=你的token
 ```
 
-用途：锐评人格、谱面标签任务、命令说明、配置摘要。  
+用途：锐评人格、加权谱面标签任务、命令说明、配置摘要。  
 监听非本机地址时必须配置 Token。
+
+## 谱面标签
+
+- 覆盖 Expert / Master / Re:Master，且定数 ≥ 12.6
+- 标签带**难点权重**，高辨识配置优先，泛化的底力/手速降权
+- 来源：Gamerch 谱面说明与物量、B 站/YouTube 攻略证据；可 WebUI 手动覆写
+- 数据文件：`static/maimaidx_chart_tags.json`（含 `tag_scores`）
 
 ## 数据与安全
 

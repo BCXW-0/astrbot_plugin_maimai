@@ -11,8 +11,8 @@ from astrbot.api.event import AstrMessageEvent
 
 from .. import log
 from ..command.mai_base import convert_message_segment_to_chain, extract_at_qqid
-from ..libraries.chart_tags.lookup import chart_key, get_chart_tags
-from ..libraries.chart_tags.rule_tags import filter_allowed_tags
+from ..libraries.chart_tags.lookup import chart_key, get_chart_tags, get_chart_tag_scores
+from ..libraries.chart_tags.rule_tags import filter_allowed_tags, tag_weight
 from ..libraries.chart_tags.storage import CHART_TAGS_FILE, read_chart_tags
 from ..libraries.maimaidx_api_data import maiApi
 from ..libraries.maimaidx_error import UserDisabledQueryError, UserNotExistsError, UserNotFoundError
@@ -151,12 +151,15 @@ def _candidate_rank(candidates: list[dict[str, Any]], candidate: dict[str, Any])
 
 
 def _tags_from_data(tags_data: dict[str, Any], song_id: Any, level_index: Any) -> list[str]:
+    from ..libraries.chart_tags.rule_tags import sort_tags_by_weight
     charts = tags_data.get("charts", {}) if isinstance(tags_data, dict) else {}
     item = charts.get(chart_key(song_id, level_index), {})
     tags = item.get("final_tags") or item.get("tags") or item.get("llm_tags") or []
     if not isinstance(tags, list):
         return []
-    return filter_allowed_tags(str(tag) for tag in tags)
+    cleaned = filter_allowed_tags(str(tag) for tag in tags)
+    scores = item.get("tag_scores") if isinstance(item, dict) and isinstance(item.get("tag_scores"), dict) else None
+    return sort_tags_by_weight(cleaned, scores)
 
 
 def _read_chart_tags_cached() -> dict[str, Any]:
@@ -174,7 +177,7 @@ def _read_chart_tags_cached() -> dict[str, Any]:
 
 def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5, tags_data: dict[str, Any] | None = None) -> list[str]:
     tags_data = tags_data if tags_data is not None else _read_chart_tags_cached()
-    counts: dict[str, int] = {}
+    weights: dict[str, float] = {}
     for chart in [*b35, *b15]:
         song_id = str(getattr(chart, "song_id", "") or "")
         try:
@@ -183,11 +186,18 @@ def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5, tags_data:
             continue
         if not song_id:
             continue
-        for tag in _tags_from_data(tags_data, song_id, level_index):
-            counts[tag] = counts.get(tag, 0) + 1
+        item = (tags_data.get("charts", {}) or {}).get(f"{song_id}:{level_index}", {}) if isinstance(tags_data, dict) else {}
+        scores = item.get("tag_scores") if isinstance(item, dict) and isinstance(item.get("tag_scores"), dict) else {}
+        tags = _tags_from_data(tags_data, song_id, level_index)
+        for tag in tags:
+            try:
+                score = float(scores.get(tag, tag_weight(tag)))
+            except (TypeError, ValueError):
+                score = tag_weight(tag)
+            weights[tag] = weights.get(tag, 0.0) + max(score, tag_weight(tag))
     return [
         tag
-        for tag, _count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
+        for tag, _score in sorted(weights.items(), key=lambda item: (-item[1], -tag_weight(item[0]), item[0]))[:limit]
     ]
 
 

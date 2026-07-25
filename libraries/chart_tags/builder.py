@@ -5,7 +5,7 @@ from typing import Any
 
 from ... import diffs
 from ..maimaidx_music import mai
-from .constants import ALLOWED_TAGS, DIFFICULTY_NAMES, MIN_TAG_DS, TAG_RULE_VERSION, TARGET_LEVEL_INDEXES
+from .constants import ALLOWED_TAGS, DIFFICULTY_NAMES, MIN_TAG_DS, TAG_RULE_VERSION, TAG_WEIGHTS, TARGET_LEVEL_INDEXES
 from .storage import CHART_TAGS_FILE, read_chart_tags, write_json_atomic
 
 CN_TZ = timezone(timedelta(hours=8))
@@ -77,6 +77,7 @@ def build_chart_tag_payload() -> dict[str, Any]:
                 "manual_tags": [],
                 "llm_tags": [],
                 "final_tags": [],
+                "tag_scores": {},
                 "tag_categories": {},
                 "evidence": [],
                 "updated_at": generated_at,
@@ -88,6 +89,7 @@ def build_chart_tag_payload() -> dict[str, Any]:
                     "llm_tags",
                     "final_tags",
                     "tags",
+                    "tag_scores",
                     "tag_categories",
                     "evidence",
                     "tag_status",
@@ -106,6 +108,7 @@ def build_chart_tag_payload() -> dict[str, Any]:
         "min_ds": MIN_TAG_DS,
         "tag_rule_version": TAG_RULE_VERSION,
         "allowed_tags": ALLOWED_TAGS,
+        "tag_weights": TAG_WEIGHTS,
         "charts": charts,
     }
 

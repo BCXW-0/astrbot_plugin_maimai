@@ -15,8 +15,15 @@ from urllib.parse import quote_plus, urlparse
 import aiohttp
 
 from ... import log
-from .constants import ALLOWED_TAGS, TAG_CATEGORIES, TAG_RULE_VERSION
-from .rule_tags import filter_allowed_tags
+from .constants import (
+    ALLOWED_TAGS,
+    GENERIC_TAGS,
+    SOURCE_WEIGHTS,
+    TAG_CATEGORIES,
+    TAG_RULE_VERSION,
+    TAG_WEIGHTS,
+)
+from .rule_tags import filter_allowed_tags, select_final_tags, sort_tags_by_weight, tag_weight
 from .storage import CHART_TAGS_FILE, JOB_STATE_FILE, read_chart_tags, read_job_state, write_json_atomic, write_job_state
 
 CN_TZ = timezone(timedelta(hours=8))
@@ -40,31 +47,31 @@ NOTES_DENSITY_SPEED_THRESHOLD = 5.1
 
 TAG_KEYWORD_RULES = [
     ("节奏", [r"节奏\s*(怪|难|難|复杂|複雑)", r"(怪|变|變)\s*节奏", r"(怪|变|變)\s*拍", r"リズム\s*(難|むず|複雑)", r"変則\s*リズム", r"tricky\s*rhythm"]),
-    ("背谱", [r"背谱", r"背譜", r"记忆", r"記憶", r"暗记", r"暗記", r"初见杀", r"初見殺", r"覚えゲー", r"譜面を覚"]),
-    ("管子", [r"管子", r"管子海", r"slide\s*(多|地帯|festival)", r"スライド\s*(多|地帯)", r"Slide\s*(多|地帯)"]),
-    ("定位", [r"定位", r"键盘定位", r"按键定位", r"手位", r"按区", r"按區", r"分区", r"分區"]),
-    ("散打", [r"散打", r"散点", r"散點", r"散键", r"散鍵", r"乱打", r"亂打", r"乱れ打ち", r"Tap\s*(多|地帯)"]),
-    ("手序", [r"手序", r"运指", r"運指", r"骗手", r"騙手", r"骗招", r"换手", r"換手", r"交叉手"]),
-    ("飞手", [r"飞手", r"飛手", r"飞键", r"飛鍵", r"大位移", r"位移散点", r"位移交互", r"远距离", r"遠距離", r"出张", r"出張"]),
-    ("防蹭", [r"防蹭", r"防擦", r"蹭星", r"星星.*定位", r"星星.*防", r"avoid\s*touch"]),
-    ("留尾", [r"留尾", r"留尾巴", r"尾巴", r"hold\s*尾", r"slide\s*尾", r"尾判", r"片手.*拘束", r"拘束されながら"]),
-    ("爆发", [r"爆发", r"爆發", r"发狂", r"發狂", r"尾杀", r"尾殺", r"瞬间密度", r"瞬間密度", r"局部高密度", r"局所高密度", r"高密度地帯"]),
-    ("底力", [r"底力", r"综合力", r"綜合力", r"総合力", r"高物量", r"物量譜面", r"物量", r"高ノーツ", r"高総数", r"耐力", r"持久力", r"体力", r"體力", r"硬抗", r"硬扛", r"休息少", r"持续高密度", r"持續高密度"]),
-    ("交互", [r"交互", r"trill", r"トリル"]),
-    ("定拍", [r"定拍", r"正拍", r"等拍", r"均等拍", r"オンビート", r"on\s*beat"]),
-    ("一笔划", [r"一笔划", r"一笔画", r"一筆画", r"一筆書き"]),
-    ("双押", [r"双押", r"雙押", r"双押海", r"同押", r"同時押し", r"大位移双押"]),
-    ("扫键", [r"扫键", r"掃鍵", r"扫圈", r"掃圈", r"转圈", r"轉圈", r"回转", r"回転", r"旋转", r"旋轉", r"流し", r"回転配置", r"半回転"]),
-    ("死镰", [r"死镰", r"死鎌", r"镰刀", r"鎌刀"]),
-    ("错位", [r"错位", r"错拍", r"对拍", r"對拍", r"伪对拍", r"不匀速", r"不均匀", r"拍划", r"拍画", r"一拍划", r"一拍画", r"\d+\s*分划", r"\d+\s*分\s*slide"]),
-    ("手速", [r"手速", r"键密度", r"鍵密度", r"高速配置", r"高\s*bpm", r"高速\s*bpm", r"bpm\s*(2[4-9]\d|[3-9]\d\d)", r"(240|25\d|26\d|27\d|28\d|29\d|[3-9]\d\d)\s*bpm", r"(2[4-9]\d|[3-9]\d\d)\s*bpm", r"(2[4-9]\d|[3-9]\d\d)\s*BPM", r"(2[4-9]\d|[3-9]\d\d)\s*以上.*bpm", r"(2[4-9]\d|[3-9]\d\d)\s*\\+", r"(2[4-9]|[3-9]\d|[1-9]\d{2,})\s*分\s*交互", r"24分", r"32分", r"64分", r"素早い動き", r"高速の", r"高密度"]),
-    ("纵连", [r"长纵", r"長縦", r"長纵", r"长縦", r"纵连", r"縦連", r"縱連", r"竖连", r"竪連", r"微縦連"]),
-    ("子弹", [r"子弹", r"短纵", r"短縦", r"短い縦連", r"叠键", r"叠押", r"2\s*连纵", r"3\s*连纵", r"二连纵", r"三连纵"]),
+    ("背谱", [r"背谱", r"背譜", r"记忆杀", r"記憶殺", r"暗记", r"暗記", r"初见杀", r"初見殺", r"覚えゲー", r"譜面を覚", r"需要背"]),
+    ("管子", [r"管子海", r"管子", r"slide\s*(海|多|地帯|festival)", r"スライド\s*(多|地帯|祭り)", r"Slide\s*(多|地帯)", r"スライドギミック"]),
+    ("定位", [r"键盘定位", r"按键定位", r"定位难", r"定位難", r"定位", r"手位固定", r"按区", r"按區", r"分区打", r"分區"]),
+    ("散打", [r"散打", r"散点海", r"散點", r"散键", r"散鍵", r"乱打配置", r"亂打", r"乱れ打ち", r"Tap\s*(多|地帯)"]),
+    ("手序", [r"手序乱", r"手序難", r"手序难", r"手序", r"运指", r"運指", r"骗手", r"騙手", r"骗招", r"交叉手", r"换手杀", r"換手"]),
+    ("飞手", [r"飞手", r"飛手", r"飞键", r"飛鍵", r"大位移", r"位移交互", r"远距离配置", r"遠距離", r"出张", r"出張", r"大ジャンプ"]),
+    ("防蹭", [r"防蹭", r"防擦", r"蹭星", r"星星定位", r"slide\s*careful", r"avoid\s*touch", r"擦り"]),
+    ("留尾", [r"留尾", r"留尾巴", r"尾巴判", r"hold\s*尾", r"slide\s*尾", r"尾判", r"片手拘束", r"拘束されながら"]),
+    ("爆发", [r"爆发段", r"爆發", r"爆发", r"发狂", r"發狂", r"尾杀", r"尾殺", r"瞬间密度", r"瞬間密度", r"局部高密度", r"局所高密度", r"高密度地帯"]),
+    ("底力", [r"综合力要求", r"底力要求", r"底力谱", r"底力譜", r"底力", r"物量譜面", r"高物量", r"高ノーツ数", r"高総数", r"持久力", r"硬抗全曲", r"持续高密度", r"持續高密度"]),
+    ("交互", [r"交互海", r"交互難", r"交互难", r"交互", r"\btrill\b", r"トリル"]),
+    ("定拍", [r"定拍", r"正拍", r"等拍打", r"均等拍", r"オンビート", r"on\s*beat"]),
+    ("一笔划", [r"一笔划", r"一笔画", r"一筆画", r"一筆書き", r"一笔スライド"]),
+    ("双押", [r"双押海", r"双押", r"雙押", r"同押", r"同時押し", r"大位移双押"]),
+    ("扫键", [r"扫键", r"掃鍵", r"扫圈", r"掃圈", r"转圈配置", r"回转配置", r"回転配置", r"半回転", r"流し打ち"]),
+    ("死镰", [r"死镰", r"死鎌", r"镰刀键", r"鎌刀"]),
+    ("错位", [r"错位", r"错拍", r"伪对拍", r"不匀速", r"不均匀", r"拍划", r"拍画", r"一拍划", r"一拍画", r"\d+\s*分划", r"ズレ"]),
+    ("手速", [r"手速要求", r"手速谱", r"手速譜", r"手速", r"键密度高", r"鍵密度", r"高速配置", r"高\s*BPM", r"高速\s*BPM", r"BPM\s*(2[4-9]\d|[3-9]\d\d)", r"(2[4-9]\d|[3-9]\d\d)\s*BPM", r"24分交互", r"32分", r"64分", r"素早い配置"]),
+    ("纵连", [r"长纵", r"長縦", r"長纵", r"长縦", r"纵连", r"縦連", r"縱連", r"竖连", r"竪連", r"微縦連", r"縦連地帯"]),
+    ("叠键", [r"叠键", r"叠押", r"短纵", r"短縦", r"短い縦連", r"2\s*连纵", r"3\s*连纵", r"二连纵", r"三连纵"]),
     ("跳拍", [r"跳拍", r"跳\s*拍", r"跳节奏", r"跳節奏", r"リズム\s*飛び", r"拍が飛ぶ"]),
-    ("延迟星星", [r"延迟星星", r"延迟星", r"延遲星星", r"延遲星", r"延迟.*星", r"延遲.*星", r"遅延.*星", r"遅れて.*星"]),
-    ("如龙", [r"如龙", r"如龍", r"如龙扫", r"如龍掃", r"如龙\s*扫", r"如龍\s*掃", r"龍.*掃", r"龙.*扫"]),
-    ("秒划", [r"秒划", r"秒画", r"秒畫", r"秒划星星", r"秒画星星", r"秒畫星星", r"即划", r"即画", r"瞬間.*スライド"]),
-    ("拆谱", [r"拆谱", r"拆譜", r"拆解", r"拆分", r"分解", r"拆配置", r"譜面.*分解"]),
+    ("延迟星星", [r"延迟星星", r"延迟星", r"延遲星星", r"延遲星", r"延迟.*星星", r"延遲.*星", r"遅延スライド", r"遅れて.*星"]),
+    ("如龙", [r"如龙扫", r"如龍掃", r"如龙", r"如龍", r"龍.*掃", r"龙.*扫"]),
+    ("秒划", [r"秒划", r"秒画", r"秒畫", r"秒划星星", r"即划", r"即画", r"瞬間スライド"]),
+    ("拆谱", [r"拆谱", r"拆譜", r"需要拆", r"要拆开", r"分解配置", r"左右分解", r"配分を考える"]),
 ]
 
 
@@ -169,7 +176,52 @@ class ChartTagUpdateJob:
         result["message"] = message
         return result
 
+
+    def reprocess_all_from_evidence(self, *, force_network_pending: bool = True) -> dict[str, Any]:
+        """用现有 evidence + 新权重规则全量重算标签；缺证据的标记为待抓取。"""
+        data = read_chart_tags()
+        charts = data.get("charts", {}) if isinstance(data, dict) else {}
+        if not isinstance(charts, dict) or not charts:
+            return {"ok": False, "message": "标签库为空", "reprocessed": 0, "pending": 0}
+        reprocessed = 0
+        pending = 0
+        for key, chart in charts.items():
+            if not isinstance(chart, dict):
+                continue
+            evidence = chart.get("evidence") if isinstance(chart.get("evidence"), list) else []
+            ok = self._apply_tag_scores(chart, evidence)
+            chart["updated_at"] = now_text()
+            reprocessed += 1
+            if not ok and force_network_pending:
+                # 降低版本标记，确保后续 job 会重新联网抓取
+                chart["tag_rule_version"] = 0
+                chart["tag_status"] = chart.get("tag_status") or "no_evidence"
+                pending += 1
+            elif ok and int(chart.get("tag_rule_version", 0) or 0) < TAG_RULE_VERSION:
+                chart["tag_rule_version"] = TAG_RULE_VERSION
+        data["charts"] = charts
+        data["tag_rule_version"] = TAG_RULE_VERSION
+        data["allowed_tags"] = ALLOWED_TAGS
+        data["tag_weights"] = TAG_WEIGHTS
+        data["updated_at"] = now_text()
+        write_json_atomic(CHART_TAGS_FILE, data)
+        return {
+            "ok": True,
+            "message": f"已按权重规则重算 {reprocessed} 张谱面，其中 {pending} 张仍待联网补证据",
+            "reprocessed": reprocessed,
+            "pending": pending,
+            "tagged": len([c for c in charts.values() if isinstance(c, dict) and filter_allowed_tags(c.get("final_tags") or [])]),
+            "total": len(charts),
+        }
+
+    async def rebuild_all(self, batch_size: int = 50) -> dict[str, Any]:
+        """离线重算 + 启动联网任务补齐无证据谱面。"""
+        offline = await asyncio.to_thread(self.reprocess_all_from_evidence)
+        start_result = await self.start(batch_size=batch_size)
+        return {"ok": True, "offline": offline, "job": start_result}
+
     async def shutdown(self) -> None:
+
         self.stop_requested = True
         thread = self.worker_thread
         if thread and thread.is_alive():
@@ -291,18 +343,25 @@ class ChartTagUpdateJob:
 
     def _merge_chart_update(self, current: dict[str, Any], updated: dict[str, Any]) -> dict[str, Any]:
         merged = dict(current)
-        for field in ("evidence", "llm_tags", "tag_status", "tag_error", "tag_rule_version", "updated_at"):
+        for field in ("evidence", "llm_tags", "tag_status", "tag_error", "tag_rule_version", "updated_at", "tag_scores"):
             if field in updated:
                 merged[field] = updated[field]
         manual_tags = filter_allowed_tags(current.get("manual_tags", []))
         llm_tags = filter_allowed_tags(updated.get("llm_tags", []))
+        tag_scores = updated.get("tag_scores") if isinstance(updated.get("tag_scores"), dict) else {}
         if not llm_tags and updated.get("tag_status") in {"no_evidence", "failed"}:
             llm_tags = filter_allowed_tags(current.get("llm_tags") or current.get("final_tags") or current.get("tags") or [])
-        final_tags = filter_allowed_tags([*llm_tags, *manual_tags])
+            if not tag_scores and isinstance(current.get("tag_scores"), dict):
+                tag_scores = current.get("tag_scores") or {}
+        if tag_scores:
+            final_tags, tag_scores = select_final_tags(tag_scores, manual_tags)
+        else:
+            final_tags, tag_scores = select_final_tags({tag: tag_weight(tag) for tag in llm_tags}, manual_tags)
         merged["manual_tags"] = manual_tags
         merged["llm_tags"] = llm_tags
         merged["final_tags"] = final_tags
         merged["tags"] = final_tags
+        merged["tag_scores"] = tag_scores
         merged["tag_categories"] = {tag: TAG_CATEGORIES[tag] for tag in final_tags if tag in TAG_CATEGORIES}
         if final_tags:
             merged["tag_status"] = "done"
@@ -312,30 +371,35 @@ class ChartTagUpdateJob:
     async def _tag_chart(self, chart: dict[str, Any]) -> bool:
         evidence = await self._search_chart(chart)
         chart["evidence"] = evidence
-        if not evidence:
-            chart["llm_tags"] = []
-            chart["final_tags"] = filter_allowed_tags(chart.get("manual_tags", []))
-            chart["tags"] = chart["final_tags"]
-            chart["tag_categories"] = {tag: TAG_CATEGORIES[tag] for tag in chart["final_tags"] if tag in TAG_CATEGORIES}
-            chart["tag_status"] = "done" if chart["final_tags"] else "no_evidence"
-            chart["tag_rule_version"] = TAG_RULE_VERSION
-            return False
-        llm_tags = self._extract_tags_from_evidence(evidence)
+        return self._apply_tag_scores(chart, evidence)
+
+    def _apply_tag_scores(self, chart: dict[str, Any], evidence: list[dict[str, str]] | None = None) -> bool:
+        """基于证据 + 物量启发式计算加权标签。"""
+        evidence = evidence if evidence is not None else list(chart.get("evidence") or [])
+        scores = self._score_tags_from_evidence(evidence, chart)
+        for tag, score in self._notes_heuristic_scores(chart).items():
+            scores[tag] = max(float(scores.get(tag, 0.0) or 0.0), float(score))
         manual_tags = filter_allowed_tags(chart.get("manual_tags", []))
-        final_tags = filter_allowed_tags([*llm_tags, *manual_tags])
+        final_tags, tag_scores = select_final_tags(scores, manual_tags)
+        llm_tags = [tag for tag in final_tags if tag not in manual_tags]
+        # 若筛选后为空，仍保留按分排序的原始高分标签候选（不含 manual 时）
+        if not final_tags and scores:
+            ranked = sort_tags_by_weight(scores.keys(), scores)
+            llm_tags = ranked[:3]
+            final_tags, tag_scores = select_final_tags({t: scores[t] for t in llm_tags}, manual_tags)
         chart["llm_tags"] = llm_tags
         chart["manual_tags"] = manual_tags
         chart["final_tags"] = final_tags
         chart["tags"] = final_tags
+        chart["tag_scores"] = tag_scores
         chart["tag_categories"] = {tag: TAG_CATEGORIES[tag] for tag in final_tags if tag in TAG_CATEGORIES}
+        chart["tag_rule_version"] = TAG_RULE_VERSION
         if not final_tags:
             chart["tag_status"] = "no_evidence"
-            chart["tag_error"] = "中文平台资料不足，未抽取到白名单标签"
-            chart["tag_rule_version"] = TAG_RULE_VERSION
+            chart["tag_error"] = "资料不足，未抽取到足够可信的难点标签"
             return False
         chart["tag_status"] = "done"
         chart["tag_error"] = ""
-        chart["tag_rule_version"] = TAG_RULE_VERSION
         return True
 
     async def _search_chart(self, chart: dict[str, Any]) -> list[dict[str, str]]:
@@ -358,7 +422,7 @@ class ChartTagUpdateJob:
             gamerch_direct = await self._search_gamerch_direct(session, chart, budget)
             results = self._merge_results(results, gamerch_direct)
             prepared = await self._prepare_evidence(session, results, title, difficulty, budget)
-            if self._extract_tags_from_evidence(prepared):
+            if self._has_usable_tag_signal(prepared, chart):
                 return self._remember_chart_search(chart_cache_key, prepared)
             for tier in self._search_query_tiers(chart):
                 for query in tier:
@@ -367,7 +431,7 @@ class ChartTagUpdateJob:
                     results = self._merge_results(results, await self._cached_search("bilibili_api", query, lambda: self._search_bilibili_api(session, query, limit=8), budget))
                     results = self._merge_results(results, await self._cached_search("bilibili_html", query, lambda: self._search_bilibili_html(session, query, limit=8), budget))
                     prepared = await self._prepare_evidence(session, results, title, difficulty, budget)
-                    if self._extract_tags_from_evidence(prepared):
+                    if self._has_usable_tag_signal(prepared, chart):
                         return self._remember_chart_search(chart_cache_key, prepared)
                 if len(results) < 8 and self._has_search_budget(budget):
                     for query in tier:
@@ -874,38 +938,105 @@ class ChartTagUpdateJob:
 
     def _gamerch_notes_summary(self, content: str, chart: dict[str, Any]) -> str:
         rows = self._parse_gamerch_notes_rows(content, str(chart.get("type", "") or ""))
-        level_index = int(chart.get("level_index", 0) or 0)
-        if level_index >= len(rows):
+        if not rows:
             return ""
-        row = rows[level_index]
-        ds = self._chart_ds(chart)
-        bpm = self._parse_bpm_value(content, chart.get("bpm"))
-        total = row.get("total", 0)
-        tap = row.get("tap", 0)
-        hold = row.get("hold", 0)
-        slide = row.get("slide", 0)
-        touch = row.get("touch", 0)
-        brk = row.get("break", 0)
+        difficulty = str(chart.get("difficulty", "") or "")
+        row = self._pick_gamerch_notes_row(rows, difficulty)
+        if not row:
+            return ""
+        total = int(row.get("total", 0) or 0)
+        if total <= 0:
+            return ""
+        bpm = float(chart.get("bpm", 0) or 0)
+        ds = float(chart.get("ds", 0) or 0)
         density = self._notes_density(total, bpm)
-        tags = []
-        if total >= NOTES_TOTAL_BURST_THRESHOLD or (ds >= 13.2 and total >= 880):
-            tags.append("爆发")
-        if total >= NOTES_TOTAL_STAMINA_THRESHOLD or density >= NOTES_DENSITY_STAMINA_THRESHOLD or (ds >= 13.2 and total >= 930):
-            tags.append("底力")
-        if bpm >= 240 or density >= NOTES_DENSITY_SPEED_THRESHOLD or (ds >= 13.2 and bpm >= 210 and total >= 850):
-            tags.append("手速")
-        if slide >= max(64, int(total * 0.09)):
-            tags.append("管子")
-        if tap >= max(600, int(total * 0.62)):
-            tags.append("散打")
-        if touch >= max(70, int(total * 0.08)):
-            tags.append("定位")
-        tag_text = " ".join(tags)
+        tap = int(row.get("tap", 0) or 0)
+        hold = int(row.get("hold", 0) or 0)
+        slide = int(row.get("slide", 0) or 0)
+        touch = int(row.get("touch", 0) or 0)
+        brk = int(row.get("break", 0) or 0)
+        # 不在摘要中直接写入中文标签名，避免关键词二次污染；标签由 _notes_heuristic_scores 单独计分
         return (
             f"譜面データ {chart.get('difficulty', '')} 定数 {ds:.1f} BPM {bpm:g} "
             f"総数 {total} Tap {tap} Hold {hold} Slide {slide} Touch {touch} Break {brk} "
-            f"ノーツ密度 {density:.2f}/秒 {tag_text}"
+            f"ノーツ密度 {density:.2f}/秒"
         ).strip()
+
+    def _notes_heuristic_scores(self, chart: dict[str, Any]) -> dict[str, float]:
+        """纯 note 结构启发式，源权重低，只作补充信号。"""
+        notes = chart.get("notes") if isinstance(chart.get("notes"), dict) else {}
+        # 若 evidence 中已有 gamerch 譜面データ，优先用摘要里的数字；否则用曲库 notes
+        total = int(notes.get("total", 0) or 0)
+        tap = int(notes.get("tap", 0) or 0)
+        hold = int(notes.get("hold", 0) or 0)
+        slide = int(notes.get("slide", 0) or 0)
+        touch = int(notes.get("touch", 0) or 0)
+        brk = int(notes.get("break", 0) or 0)
+        for item in chart.get("evidence") or []:
+            if item.get("source") != "gamerch":
+                continue
+            summary = str(item.get("summary", "") or "")
+            if "譜面データ" not in summary and "総数" not in summary:
+                continue
+            nums = re.findall(
+                r"総数\s*(\d+)\s*Tap\s*(\d+)\s*Hold\s*(\d+)\s*Slide\s*(\d+)\s*Touch\s*(\d+)\s*Break\s*(\d+)",
+                summary,
+            )
+            if nums:
+                total, tap, hold, slide, touch, brk = [int(x) for x in nums[0]]
+                break
+        if total <= 0:
+            return {}
+        bpm = float(chart.get("bpm", 0) or 0)
+        ds = float(chart.get("ds", 0) or 0)
+        density = self._notes_density(total, bpm)
+        source_w = float(SOURCE_WEIGHTS.get("notes", 0.42))
+        scores: dict[str, float] = {}
+
+        def add(tag: str, strength: float) -> None:
+            if strength <= 0:
+                return
+            scores[tag] = max(scores.get(tag, 0.0), tag_weight(tag) * source_w * min(1.35, strength))
+
+        slide_ratio = slide / total
+        tap_ratio = tap / total
+        touch_ratio = touch / total
+        break_ratio = brk / total
+        if slide >= max(72, int(total * 0.11)) or slide_ratio >= 0.12:
+            add("管子", 0.9 + min(0.4, slide_ratio * 2))
+        if tap >= max(650, int(total * 0.66)) and slide_ratio < 0.1:
+            add("散打", 0.85)
+        if touch >= max(80, int(total * 0.09)) or touch_ratio >= 0.1:
+            add("定位", 0.8)
+        if total >= NOTES_TOTAL_BURST_THRESHOLD or (ds >= 13.6 and density >= 4.6 and brk >= 48):
+            add("爆发", 0.75 + min(0.35, break_ratio * 3))
+        # 底力/手速阈值抬高，减少误标
+        if total >= max(NOTES_TOTAL_STAMINA_THRESHOLD, 1100) or density >= 5.0 or (ds >= 13.5 and total >= 1000):
+            add("底力", 0.7)
+        if bpm >= 250 or density >= 5.3 or (ds >= 13.5 and bpm >= 220 and total >= 900):
+            add("手速", 0.7)
+        if hold >= max(90, int(total * 0.12)) and slide_ratio >= 0.08:
+            add("留尾", 0.55)
+        return scores
+
+    def _pick_gamerch_notes_row(self, rows: list[dict[str, int]], difficulty: str) -> dict[str, int] | None:
+        if not rows:
+            return None
+        difficulty_text = str(difficulty or "").strip().lower()
+        # Gamerch 表通常按 Basic → Re:Master 排列；不足 5 行时取最接近的高难度行
+        if difficulty_text.startswith("re"):
+            prefer = 4
+        elif difficulty_text.startswith("master"):
+            prefer = 3
+        elif difficulty_text.startswith("expert"):
+            prefer = 2
+        elif difficulty_text.startswith("advanced"):
+            prefer = 1
+        else:
+            prefer = 0
+        if prefer < len(rows):
+            return rows[prefer]
+        return rows[-1]
 
     def _parse_gamerch_notes_rows(self, content: str, chart_type: str = "") -> list[dict[str, int]]:
         rows: list[dict[str, int]] = []
@@ -1296,13 +1427,53 @@ class ChartTagUpdateJob:
         normalized = unicodedata.normalize("NFKC", str(value or "").lower())
         return "".join(ch for ch in normalized if unicodedata.category(ch)[0] in {"L", "N"})
 
+    def _score_tags_from_evidence(self, evidence: list[dict[str, str]], chart: dict[str, Any] | None = None) -> dict[str, float]:
+        scores: dict[str, float] = {}
+        for item in evidence or []:
+            source = str(item.get("source", "") or "").lower()
+            source_w = float(SOURCE_WEIGHTS.get(source, 0.5))
+            title = str(item.get("title", "") or "")
+            summary = str(item.get("summary", "") or "")
+            text = f"{title}\n{summary}"
+            if not text.strip():
+                continue
+            quality = 1.0
+            if re.search(r"谱面|譜面|手元|攻略|配置|確認|确认", text, flags=re.I):
+                quality += 0.18
+            if "譜面データ" in text or "ノーツ密度" in text:
+                quality += 0.08
+            # 标题含曲名时略增信
+            if chart and str(chart.get("title", "") or "") and str(chart.get("title")) in title:
+                quality += 0.1
+            for tag, patterns in TAG_KEYWORD_RULES:
+                hits = 0
+                for pattern in patterns:
+                    if re.search(pattern, text, flags=re.I):
+                        hits += 1
+                if not hits:
+                    continue
+                # 多模式命中加强，但有上限
+                hit_factor = min(1.35, 0.62 + 0.22 * hits)
+                add = tag_weight(tag) * source_w * quality * hit_factor
+                scores[tag] = float(scores.get(tag, 0.0) or 0.0) + add
+        return scores
+
     def _extract_tags_from_evidence(self, evidence: list[dict[str, str]]) -> list[str]:
-        text = "\n".join(f"{item.get('title', '')} {item.get('summary', '')}" for item in evidence)
-        matched = []
-        for tag, patterns in TAG_KEYWORD_RULES:
-            if any(re.search(pattern, text, flags=re.I) for pattern in patterns):
-                matched.append(tag)
-        return filter_allowed_tags(matched)
+        scores = self._score_tags_from_evidence(evidence)
+        tags, _ = select_final_tags(scores)
+        return tags
+
+    def _has_usable_tag_signal(self, evidence: list[dict[str, str]], chart: dict[str, Any] | None = None) -> bool:
+        scores = self._score_tags_from_evidence(evidence, chart)
+        if chart is not None:
+            for tag, score in self._notes_heuristic_scores(chart).items():
+                scores[tag] = max(float(scores.get(tag, 0.0) or 0.0), float(score))
+        tags, selected_scores = select_final_tags(scores)
+        if not tags:
+            return False
+        if any(tag not in GENERIC_TAGS for tag in tags):
+            return True
+        return max(selected_scores.values(), default=0.0) >= 0.55 and len(tags) >= 2
 
     def _valid_tags(self, chart: dict[str, Any]) -> list[str]:
         if not isinstance(chart, dict):
