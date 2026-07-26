@@ -62,7 +62,19 @@ def _merge_local_into_item(item: dict[str, Any], local: dict[str, Any], *, prefe
         if conf < 0.7:
             for tag in web_tags:
                 merged_scores[tag] = max(float(merged_scores.get(tag, 0.0) or 0.0), float(old_scores.get(tag, TAG_WEIGHTS.get(tag, 0.4))) * 0.55)
-        final_tags, tag_scores = select_final_tags(merged_scores, manual)
+            final_tags, tag_scores = select_final_tags(merged_scores, manual)
+        else:
+            # 高置信：保留本地主配置顺序（如 管子 优先），再补手动标签
+            final_tags, tag_scores = select_final_tags(merged_scores, manual)
+            ordered: list[str] = []
+            for tag in list(manual) + list(local_tags) + list(final_tags):
+                if tag in merged_scores and tag not in ordered:
+                    ordered.append(tag)
+            final_tags = ordered[:5]
+            tag_scores = {
+                tag: float(merged_scores.get(tag, tag_scores.get(tag, TAG_WEIGHTS.get(tag, 0.5))))
+                for tag in final_tags
+            }
         item["final_tags"] = final_tags
         item["tags"] = final_tags
         item["tag_scores"] = tag_scores

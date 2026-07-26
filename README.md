@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-1.8.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-1.8.1-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -24,7 +24,8 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 - 保留查歌 / 查分 / B50 / 定数表 / 完成表 / 猜歌
 - 移除别名投票、别名推送、机厅排卡
 - 增加水鱼 Import-Token 绑定、SGWCMAID 同步、吃分推荐、锐评人格 WebUI、谱面标签
-- `1.7.x`：`舞萌体检`、`舞萌初始化`（一次完成曲库+别名+定数表+完成表并热加载）、分层帮助、我的舞萌、目标推分与打卡；`1.7.2` 锐评 B50 含金量与提示词重构；`1.7.3` 谱面标签权重与证据源分层
+- `1.7.x`：`舞萌体检`、`舞萌初始化`、分层帮助、我的舞萌、目标推分与打卡；`1.7.2` 锐评含金量；`1.7.3` 标签权重
+- `1.8.x`：本地 maidata 结构标签；`1.8.1` 校准管子=hold、双押/定位局部峰值，并导出高可信网页金标训练集
 
 > 纯净仓库不含完整 `static/mai/` 资源包，部署后需自备静态资源并执行初始化。
 
@@ -169,21 +170,28 @@ http://127.0.0.1:8796/?token=你的token
 
 ## 谱面标签
 
+覆盖 Expert / Master / Re:Master（定数 ≥ 12.6），带难点权重；高辨识配置优先，底力/手速等泛化标签降权。
+
 ### 本地 maidata 结构分析（1.8.0+）
 
-1. 从 [OneCat 官谱](https://dw.moant.cn:34225/onecat/#/official) 仅下载 `maidata.txt`（可关 BGA）
-2. 按 simai 语法解析各难度（只分析定数 ≥ 12.6）
-3. 用 BPM、密度、键位几何、滑键形状等特征判定配置/难点并加权
-4. 写入 `local_tags`；高置信时优先于联网文案标签
+1. 从 [OneCat 官谱](https://dw.moant.cn:34225/onecat/#/official) 仅下载 `maidata.txt`（不下载 BGA）
+2. 按 simai 语法解析各难度事件
+3. 用 BPM、密度、键位几何、滑键形状与 **hold 链** 判定配置
+4. 写入 `local_tags`；高置信时优先于联网文案，并保留本地主配置顺序
 
-> 这是可解释的本地引擎。若准确率稳定，可关闭联网搜标签；后续也可用同一特征训练校准模型。
+圈内校准（1.8.1）：
 
-## 谱面标签
+- **管子** = hold（短 hold 局部过密，或 hold 结束→下一 hold 间隔极短的链式管子），不是滑键
+- **双押** = 短时同时击峰值/链式（非重叠 1s 绝对次数 + 链长），不是全谱平均，也不看易饱和的 ratio
+- **定位** = 短时高密 + 大位移卡手，或难划星星局部
 
-- 覆盖 Expert / Master / Re:Master，且定数 ≥ 12.6
-- 标签带**难点权重**，高辨识配置优先，泛化的底力/手速降权
-- 来源：Gamerch 谱面说明与物量、B 站/YouTube 攻略证据；可 WebUI 手动覆写
-- 数据文件：`static/maimaidx_chart_tags.json`（含 `tag_scores`）
+### 训练金标（网页高可信映射）
+
+- 从多源攻略正文互证 / 人工标签抽取低歧义标签，作为规则与后续模型的元数据
+- 输出：`static/chart_tag_training_labels.jsonl`
+- 排除纯物量摘要噪声；歧义标签（底力/手速等）需更强证据
+
+数据文件：`static/maimaidx_chart_tags.json`（含 `tag_scores` / `local_*`）。可 WebUI 手动覆写。
 
 ## 数据与安全
 
