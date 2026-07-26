@@ -372,12 +372,15 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
     if feat.get("touch_ratio", 0) >= 0.1:
         forced.append("定位")
     if forced:
-        merged_scores = dict(selected)
+        # 主配置标签强制进入最终列表前部
         for tag in forced:
-            merged_scores[tag] = max(float(merged_scores.get(tag, 0.0) or 0.0), float(scores.get(tag, tag_weight(tag))))
-        for tag in tags:
-            merged_scores[tag] = max(float(merged_scores.get(tag, 0.0) or 0.0), float(selected.get(tag, tag_weight(tag))))
-        tags, selected = select_final_tags(merged_scores)
+            selected[tag] = max(float(selected.get(tag, 0.0) or 0.0), float(scores.get(tag, tag_weight(tag)) or tag_weight(tag)))
+        ordered = []
+        for tag in forced + tags:
+            if tag not in ordered:
+                ordered.append(tag)
+        tags = ordered[:5]
+        selected = {tag: float(selected.get(tag, scores.get(tag, tag_weight(tag)))) for tag in tags}
     conf = 0.0
     if selected:
         # 以选中标签的相对强度与“非空泛化”比例估计置信度
