@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-1.7.3-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-1.8.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -166,6 +166,17 @@ http://127.0.0.1:8796/?token=你的token
 
 用途：锐评人格、加权谱面标签任务、命令说明、配置摘要。  
 监听非本机地址时必须配置 Token。
+
+## 谱面标签
+
+### 本地 maidata 结构分析（1.8.0+）
+
+1. 从 [OneCat 官谱](https://dw.moant.cn:34225/onecat/#/official) 仅下载 `maidata.txt`（可关 BGA）
+2. 按 simai 语法解析各难度（只分析定数 ≥ 12.6）
+3. 用 BPM、密度、键位几何、滑键形状等特征判定配置/难点并加权
+4. 写入 `local_tags`；高置信时优先于联网文案标签
+
+> 这是可解释的本地引擎。若准确率稳定，可关闭联网搜标签；后续也可用同一特征训练校准模型。
 
 ## 谱面标签
 

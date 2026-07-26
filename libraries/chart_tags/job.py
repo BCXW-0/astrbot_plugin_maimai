@@ -369,9 +369,53 @@ class ChartTagUpdateJob:
         return merged
 
     async def _tag_chart(self, chart: dict[str, Any]) -> bool:
+        # 优先：OneCat maidata 本地结构分析（无 BGA）；失败再回退联网文案证据
+        local_ok = await asyncio.to_thread(self._try_local_maidata_tags, chart)
+        if local_ok:
+            return True
         evidence = await self._search_chart(chart)
         chart["evidence"] = evidence
         return self._apply_tag_scores(chart, evidence)
+
+    def _try_local_maidata_tags(self, chart: dict[str, Any]) -> bool:
+        song_id = str(chart.get("song_id") or "")
+        try:
+            level_index = int(chart.get("level_index"))
+        except Exception:
+            return False
+        if not song_id:
+            return False
+        try:
+            from .local.pipeline import analyze_song_id, MIN_LOCAL_CONFIDENCE
+            from .local.pipeline import _merge_local_into_item
+        except Exception:
+            try:
+                from .local import analyze_song_id
+                from .local.pipeline import MIN_LOCAL_CONFIDENCE, _merge_local_into_item
+            except Exception as exc:
+                log.debug(f"本地 maidata 分析不可用: {exc}")
+                return False
+        try:
+            analyzed = analyze_song_id(song_id, min_ds=0.0)
+        except Exception as exc:
+            log.debug(f"本地 maidata 获取/解析失败 {song_id}: {exc}")
+            return False
+        local = (analyzed.get("charts") or {}).get(str(level_index))
+        if not isinstance(local, dict) or not local.get("tags"):
+            return False
+        conf = float(local.get("confidence") or 0.0)
+        _merge_local_into_item(chart, local, prefer_local=True)
+        chart["tag_rule_version"] = TAG_RULE_VERSION
+        chart["evidence"] = [{
+            "source": "maidata",
+            "title": f"{analyzed.get('title') or song_id} maidata 结构分析",
+            "url": f"onecat://maidata/{song_id}",
+            "summary": f"local_tags={'/'.join(local.get('tags') or [])} conf={conf:.2f} bpm={local.get('bpm')} nps={(local.get('features') or {}).get('nps')}",
+        }]
+        # 本地置信不足时仍返回 False，让联网证据继续补充
+        if conf < MIN_LOCAL_CONFIDENCE:
+            return False
+        return bool(chart.get("final_tags"))
 
     def _apply_tag_scores(self, chart: dict[str, Any], evidence: list[dict[str, str]] | None = None) -> bool:
         """基于证据 + 物量启发式计算加权标签。"""

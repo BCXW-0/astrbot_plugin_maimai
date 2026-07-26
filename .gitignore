@@ -231,3 +231,6 @@ static/temp_pie.html
 COMMAND_TEST_REPORT.md
 
 RELOAD_COMMAND_TEST_REPORT.md
+
+# Local maidata cache
+static/maidata_cache/
