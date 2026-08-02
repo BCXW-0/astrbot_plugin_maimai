@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-1.8.1-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-2.0.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -25,7 +25,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 - 移除别名投票、别名推送、机厅排卡
 - 增加水鱼 Import-Token 绑定、SGWCMAID 同步、吃分推荐、锐评人格 WebUI、谱面标签
 - `1.7.x`：`舞萌体检`、`舞萌初始化`、分层帮助、我的舞萌、目标推分与打卡；`1.7.2` 锐评含金量；`1.7.3` 标签权重
-- `1.8.x`：本地 maidata 结构标签；`1.8.1` 校准管子=hold、双押/定位局部峰值，并导出高可信网页金标训练集
+- `2.0.0`：移除旧谱面模型接口，改为 Codex 对话内审计并保留完整可追溯训练元数据
 
 > 纯净仓库不含完整 `static/mai/` 资源包，部署后需自备静态资源并执行初始化。
 
@@ -77,9 +77,6 @@ python -m playwright install chromium   # B50 / ginfo 等出图需要
 | `enable_reply` | 回复是否带引用 | `true` |
 | `maimaidxtoken` | 水鱼 Developer-Token（非 Import-Token） | 空 |
 | `roast_b50_provider_id` | 锐评专用模型 Provider ID | 空 |
-| `chart_tag_llm_provider_id` | 本地谱面分析专用模型 Provider ID；留空跟随当前模型 | 空 |
-| `chart_tag_llm_timeout_seconds` | 本地谱面分析单次模型调用超时（秒） | `150`（5-600） |
-| `chart_tag_llm_concurrency` | 本地谱面分析同时调用模型的数量；限流时设为 `1` | `4` |
 | `roast_persona_prompt_sample_limit` | 锐评人格样本上限 | `120` |
 | `roast_persona_webui_enabled` | 插件 WebUI | `false` |
 | `roast_persona_webui_host` / `port` / `token` | WebUI 监听与访问令牌 | `127.0.0.1` / `8796` / 空 |
@@ -175,34 +172,23 @@ http://127.0.0.1:8796/?token=你的token
 
 覆盖 Expert / Master / Re:Master（定数 ≥ 12.6），带难点权重；高辨识配置优先，底力/手速等泛化标签降权。
 
-### 本地 maidata 结构分析（1.8.0+）
+### Codex 离线谱面审计
 
-1. 从 [OneCat 官谱](https://dw.moant.cn:34225/onecat/#/official) 仅下载 `maidata.txt`（不下载 BGA）
-2. 按 simai 语法解析各难度事件
-3. 用 BPM、密度、键位几何、滑键形状与 **hold 链** 判定配置
-4. 写入 `local_tags`；高置信时优先于联网文案，并保留本地主配置顺序
+谱面文件直接读取插件内的 `static/Levels`，只分析 `lv_4`、`lv_5`、`lv_6` 中定数不低于 `12.6` 的难度。每轮固定随机抽取 100 个有效难度并强制重算，不访问外部谱面服务，也不调用 AstrBot 谱面模型。
 
-圈内校准（1.8.1）：
+Codex 对本地解析出的连续两小节窗口进行复核，输出最多 5 个主要标签，并为每个标签保存窗口、事件原始语法或撞尾候选位置。普通 Slide 星头不会进入如龙、爬梯交互和协调序列；爬梯、协调、管子、跳拍和如龙还要通过局部结构门槛。数据集保留完整 `inote`、事件序列、BPM 变化、定数、文件 SHA-256、排除的 Ex 目标和被拒绝的候选标签，便于逐条审阅。
 
-- **管子** = hold（短 hold 局部过密，或 hold 结束→下一 hold 间隔极短的链式管子），不是滑键
-- **双押** = 短时同时击峰值/链式（非重叠 1s 绝对次数 + 链长），不是全谱平均，也不看易饱和的 ratio
-- **定位** = 短时高密 + 大位移卡手，或难划星星局部
+撞尾依据三篇撞尾/无理配置文章和 [simai 语法说明](https://w.atwiki.jp/simai/pages/1002.html)：以目标时间减去 Slide 进入路径区域时间的有符号 `delta` 判定，危险范围为 `[-0.05s, +0.20s]`；`delta=0` 为绝对撞尾，`0<delta<=0.15s` 为硬撞尾，两侧边缘为软撞尾；最后 A 区覆盖到 Slide 结束并保留后 0.20 秒。原始语法含 `x` 的 Ex 目标单独记录并排除，孤立软边界不直接打标。
 
-### 训练金标（网页高可信映射）
+运行：
 
-- 从多源攻略正文互证 / 人工标签抽取低歧义标签，作为规则与后续模型的元数据
-- 输出：`static/chart_tag_training_labels.jsonl`
-- 排除纯物量摘要噪声；歧义标签（底力/手速等）需更强证据
+```bash
+PYTHONPATH=.. python3 -m astrbot_plugin_maimaidx.libraries.chart_tags.training_dataset
+```
 
-数据文件：`static/maimaidx_chart_tags.json`（含 `tag_scores` / `local_*`）。可 WebUI 手动覆写。
+产物：`static/chart_tag_sample_manifest.json`、`static/chart_tag_dataset.jsonl`、`static/chart_tag_review.json`、`static/chart_tag_loss.json`、`static/maimai_chart_tag_model.npz`、`static/maimai_chart_tag_model.json` 和 [`CHART_TAG_REPORT.md`](CHART_TAG_REPORT.md)。报告包含原始/最终标签使用率和 100 个谱面的逐条打标情况。`formal_pipeline_enabled=false`；审阅文件与正式 `static/maimaidx_chart_tags.json` 分开，人工确认前不会接管正式标签。
 
-### 本地谱面一键分析
-
-WebUI 的“谱面标签”页提供“本地谱面一键分析”：默认读取插件内的相对路径 `static/Levels`，只处理定数不低于 `12.6` 的难度。目录必须位于插件根目录内，避免通过路径参数读取插件外文件。
-
-任务会解析每个文件的 `lv_2` 至 `lv_6` 与 `inote_2` 至 `inote_6`，按实际 BPM 生成连续两小节窗口，并将结构摘要交给 AstrBot 对话模型。标签只表示反复出现并构成谱面主要游玩压力的难点，不表示配置曾经出现过；模型最多返回 5 个主要难点。结果和窗口证据写入 `static/maimaidx_chart_tags.json`；任务进度写入 `static/maimai_levels_llm_job.json`。可在 WebUI 中设置专用 Provider、单次调用超时、最低定数、文件数限制、难度数限制、强制重算和停止任务。阶段运行结果记录在 `ZHUANGWEI_ANALYSIS_REPORT.md`。
-
-撞尾专项分析使用严格规则：Slide 经过区域与目标音符的时间差必须满足 `0 < delta < 0.2s`，等于边界值不计入，目标原始语法含 `x` 的 Ex 音符排除。固定样本清单、完整事件、Slide 路径、候选位置和模型证据保存在 `static/chart_tag_llm_sample_manifest.json` 与 `static/chart_tag_llm_training_dataset.jsonl`；本地模型及逐 epoch Loss 保存在 `static/maimai_chart_tag_local_model.npz`、`static/maimai_chart_tag_local_model.json` 和 `static/chart_tag_llm_training_loss.json`。模型审核前 `formal_pipeline_enabled=false`，不会接管正式打标。
+正式标签库仍可由 WebUI 管理；Codex 审计结果仅作为待审阅记录保存，不与联网补缺互相覆盖。
 
 ## 数据与安全
 

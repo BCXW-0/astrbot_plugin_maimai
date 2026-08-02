@@ -128,8 +128,8 @@ TAG_ALIASES = {
 
 TARGET_LEVEL_INDEXES = [2, 3, 4]
 MIN_TAG_DS = 12.6
-# v13: 两小节密度窗口 + 死镰/如龙/协调/轴·爬梯交互重定义
-TAG_RULE_VERSION = 13
+# v14: Codex 离线审计标注 + 两小节密度窗口 + 撞尾路径时序规则
+TAG_RULE_VERSION = 14
 
 TAG_CATEGORIES = {
     "节奏": "节奏类配置",
@@ -160,7 +160,7 @@ TAG_CATEGORIES = {
     "如龙": "双押引导换手的同侧扫",
     "秒划": "星星类配置",
     "协调": "难协调键型/短纵/大位移交互",
-    "撞尾": "Slide经过区域与非Ex目标音符在0.2秒内相撞",
+    "撞尾": "按 simai 路径时序判定 Slide 经过区域与非 Ex 目标的处理冲突",
 }
 
 DIFFICULTY_NAMES = {

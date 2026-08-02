@@ -186,7 +186,7 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
         multi_times, onset_times, window=two_meas, step=max(beat / 2, 0.05), min_ratio=0.75, min_all=8
     )
     hold_run, hold_peak, hold_hot = _windowed_ratio_runs(
-        hold_onset_times, onset_times, window=two_meas, step=max(beat / 2, 0.05), min_ratio=0.50, min_all=6
+        hold_onset_times, onset_times, window=two_meas, step=max(beat / 2, 0.05), min_ratio=0.50, min_all=16
     )
 
     # multi absolute nonoverlap 1s (辅助)
@@ -213,11 +213,14 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
     hold_gap_min = 999.0
     hold_gap_short = 0
     hold_chain_max = 1
+    hold_chain_span_max = 0.0
     hold_gaps: list[float] = []
     hold_lens = [float(e.duration) for e in holds if e.duration > 0]
     if len(holds) >= 2:
         ordered = sorted(holds, key=lambda e: e.time)
         chain = 1
+        chain_start = ordered[0].time
+        chain_end = ordered[0].time + max(ordered[0].duration, 0.0)
         for i in range(1, len(ordered)):
             prev, cur_h = ordered[i - 1], ordered[i]
             gap = cur_h.time - (prev.time + max(prev.duration, 0.0))
@@ -227,8 +230,13 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
                 hold_gap_short += 1
                 chain += 1
                 hold_chain_max = max(hold_chain_max, chain)
+                chain_end = max(chain_end, cur_h.time + max(cur_h.duration, 0.0))
+                hold_chain_span_max = max(hold_chain_span_max, chain_end - chain_start)
             else:
                 chain = 1
+                chain_start = cur_h.time
+                chain_end = cur_h.time + max(cur_h.duration, 0.0)
+        hold_chain_span_max = max(hold_chain_span_max, chain_end - chain_start)
     # 节奏型怪异：长度 CV 或 gap CV 高
     def _cv(xs: list[float]) -> float:
         if len(xs) < 4:
@@ -240,8 +248,14 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
 
     hold_len_cv = _cv(hold_lens)
     hold_gap_cv = _cv([g for g in hold_gaps if g < 2.0])  # 忽略很长空白
+    # A global length/gap CV is not enough: ordinary Hold usage often has the
+    # same statistics.  Keep it as evidence only when one local chain spans
+    # most of two measures.
     hold_weird = 1.0 if (
-        len(holds) >= 8 and (hold_len_cv >= 0.55 or hold_gap_cv >= 0.65) and hold_gap_short >= 3
+        len(holds) >= 8
+        and hold_chain_span_max >= two_meas * 0.75
+        and (hold_len_cv >= 0.55 or hold_gap_cv >= 0.65)
+        and hold_gap_short >= 3
     ) else 0.0
 
     # 细窗口 short-hold 局部
@@ -269,33 +283,59 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
 
     # 去重同刻同键
     single_taps = sorted(set(single_taps), key=lambda x: (x[0], x[1]))
+    # Structural interaction labels must not be inferred from Slide heads.
+    # Star heads remain in single_taps for the Death Scythe detector only.
+    pattern_taps = sorted({
+        (e.time, str(e.buttons[0]))
+        for e in events
+        if e.kind in {"tap", "break"}
+        and len(e.buttons) == 1
+        and str(e.buttons[0]).isdigit()
+    }, key=lambda x: (x[0], x[1]))
 
     trill = stack = jump = 0
     short_stack_runs = 0  # 短纵 2/3
+    short_stack_points: list[tuple[float, str]] = []
     i = 0
-    while i < len(single_taps):
+    while i < len(pattern_taps):
         # stacks of same button
         j = i + 1
-        while j < len(single_taps) and single_taps[j][1] == single_taps[i][1] and single_taps[j][0] - single_taps[j - 1][0] <= beat * 0.6:
+        while j < len(pattern_taps) and pattern_taps[j][1] == pattern_taps[i][1] and pattern_taps[j][0] - pattern_taps[j - 1][0] <= beat * 0.6:
             j += 1
         run_len = j - i
         if run_len >= 2:
             stack += run_len - 1
             # 短纵：长度 2 或 3，间隔通常快于 16 分（16分间隔=beat/4）
-            dts = [single_taps[k][0] - single_taps[k - 1][0] for k in range(i + 1, j)]
+            dts = [pattern_taps[k][0] - pattern_taps[k - 1][0] for k in range(i + 1, j)]
             if run_len in {2, 3} and dts and statistics.mean(dts) <= (beat / 4) * 1.15:
                 short_stack_runs += 1
+                short_stack_points.append(pattern_taps[i])
         i = max(j, i + 1)
 
-    for k in range(1, len(single_taps)):
-        tprev, b0 = single_taps[k - 1]
-        t1_, b1 = single_taps[k]
+    short_stack_hot = max(
+        (
+            sum(1 for value, _ in short_stack_points if start <= value < start + two_meas)
+            for start, _ in short_stack_points
+        ),
+        default=0,
+    )
+    short_stack_distinct_hot = max(
+        (
+            len({button for value, button in short_stack_points if start <= value < start + two_meas})
+            for start, _ in short_stack_points
+        ),
+        default=0,
+    )
+
+    for k in range(1, len(pattern_taps)):
+        tprev, b0 = pattern_taps[k - 1]
+        t1_, b1 = pattern_taps[k]
         dt = t1_ - tprev
         if dt <= 0 or dt > 0.35:
             continue
         dist = _button_dist(b0, b1)
         if dist == 1:
-            if k >= 2 and single_taps[k - 2][1] == b1 and b0 != b1:
+            if k >= 2 and pattern_taps[k - 2][1] == b1 and b0 != b1:
                 trill += 1
         elif dist >= 3:
             jump += 1
@@ -304,10 +344,10 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
     run = 1
     max_run = 1
     direction = 0
-    for k in range(1, len(single_taps)):
-        b0 = int(single_taps[k - 1][1])
-        b1 = int(single_taps[k][1])
-        dt = single_taps[k][0] - single_taps[k - 1][0]
+    for k in range(1, len(pattern_taps)):
+        b0 = int(pattern_taps[k - 1][1])
+        b1 = int(pattern_taps[k][1])
+        dt = pattern_taps[k][0] - pattern_taps[k - 1][0]
         if dt > 0.25:
             run = 1
             direction = 0
@@ -327,8 +367,8 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
             direction = 0
 
     # ===== 轴交互 / 爬梯交互 / 普通交互 =====
-    buttons_only = [b for _, b in single_taps]
-    times_only = [t for t, _ in single_taps]
+    buttons_only = [b for _, b in pattern_taps]
+    times_only = [t for t, _ in pattern_taps]
 
     def _axis_ladder_scan() -> tuple[int, int]:
         ax = 0
@@ -338,34 +378,34 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
             seq = buttons_only[start:start + 8]
             ts = times_only[start:start + 8]
             span_t = ts[-1] - ts[0]
-            if span_t <= 0 or span_t > beat * 8:
+            if span_t <= 0 or span_t > beat * 2.0:
                 continue
             even = seq[0::2]
             odd = seq[1::2]
-            if len(set(even)) == 1 and len(set(odd)) >= 2 and even[0] not in set(odd):
+            if (
+                len(set(even)) == 1
+                and len(set(odd)) >= 3
+                and even[0] not in set(odd)
+                and all(0 < ts[i + 1] - ts[i] <= beat * 0.5 for i in range(7))
+            ):
                 ax += 1
-            dirs = [_button_dir(seq[i], seq[i + 1]) for i in range(7)]
-            dists = [_button_dist(seq[i], seq[i + 1]) for i in range(7)]
-            if min(dists) >= 1 and dirs.count(0) <= 2:
-                sign_flip = sum(1 for i in range(6) if dirs[i] and dirs[i + 1] and dirs[i] == -dirs[i + 1])
-                nondec = sum(1 for i in range(6) if dists[i + 1] >= dists[i])
-                if sign_flip >= 4 and nondec >= 3 and len(set(seq)) >= 5:
-                    ld += 1
-            # 固定模板旋转/镜像：相对中心的配对
+
+            # 严格的扩展/收缩模板：center, center-1, center+1,
+            # center-2, center+2 ...；同时接受镜像和反向书写。
             try:
                 nums = [int(x) for x in seq]
             except Exception:
                 continue
-            # 检查是否接近 (c, c-1, c+1, c-2, c+2, ...)
-            c = nums[0]
-            expect_scores = 0
-            for i, v in enumerate(nums[1:], start=1):
-                step = (i + 1) // 2
-                sign = -1 if i % 2 == 1 else 1
-                expect = ((c - 1 + sign * step) % 8) + 1
-                if v == expect:
-                    expect_scores += 1
-            if expect_scores >= 5:
+            templates: list[list[int]] = []
+            for mirror in (-1, 1):
+                expected = [nums[0]]
+                for index in range(1, 8):
+                    step = (index + 1) // 2
+                    sign = -1 if index % 2 else 1
+                    expected.append(((nums[0] - 1 + mirror * sign * step) % 8) + 1)
+                templates.extend((expected, list(reversed(expected))))
+            matches = max(sum(value == expected for value, expected in zip(nums, template)) for template in templates)
+            if matches == 8 and len(set(nums)) == 8:
                 ld += 1
         return ax, ld
 
@@ -425,55 +465,69 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
             if best >= 4:
                 death_hits += 1
 
-    # ===== 如龙：双押/半拍后同侧扫 =====
-    rulong_hits = 0
-    multi_set = multi_times
-    for mt in multi_set:
-        # after multi, look half-beat to 2 beats sweep same direction
-        seq = [(t, b) for t, b in single_taps if mt - 0.01 <= t <= mt + beat * 2.2]
-        if len(seq) < 4:
+    # ===== 如龙：真实双押/半拍引导后的同侧扫 =====
+    # Slide 星头、普通曲线和任意连续扫键都不能单独触发如龙。
+    tap_buckets: dict[int, list[NoteEvent]] = defaultdict(list)
+    for event in events:
+        if event.kind in {"tap", "break"} and len(event.buttons) == 1 and str(event.buttons[0]).isdigit():
+            tap_buckets[int(round(event.time * 1000))].append(event)
+    tap_multi_times = [
+        stamp / 1000.0
+        for stamp, group in sorted(tap_buckets.items())
+        if len({str(event.buttons[0]) for event in group}) >= 2
+    ]
+
+    rulong_starts: set[tuple[str, float]] = set()
+    rulong_double_hits = 0
+    rulong_half_hits = 0
+
+    def _same_side_sweep(seq: list[tuple[float, str]], start: int) -> int:
+        if start >= len(seq):
+            return 0
+        direction = 0
+        length = 1
+        for index in range(start + 1, len(seq)):
+            dt = seq[index][0] - seq[index - 1][0]
+            step = _button_dir(seq[index - 1][1], seq[index][1])
+            if 0 < dt <= beat * 0.75 and _button_dist(seq[index - 1][1], seq[index][1]) == 1 and step != 0:
+                if direction not in {0, step}:
+                    break
+                direction = step
+                length += 1
+                continue
+            break
+        return length
+
+    for mt in tap_multi_times:
+        lead = [str(event.buttons[0]) for event in tap_buckets[int(round(mt * 1000))]]
+        seq = [(t, b) for t, b in pattern_taps if mt < t <= mt + beat * 2.2]
+        if not seq or seq[0][0] - mt > beat * 0.75:
             continue
-        # find sweep of >=3 adjacent after first 1-2 notes
-        for start in range(0, min(3, len(seq))):
-            d0 = 0
-            length = 1
-            ok = False
-            for k in range(start + 1, len(seq)):
-                d = _button_dir(seq[k - 1][1], seq[k][1])
-                dist = _button_dist(seq[k - 1][1], seq[k][1])
-                if dist == 1 and d != 0:
-                    if d0 in {0, d}:
-                        d0 = d
-                        length += 1
-                        if length >= 4:
-                            ok = True
-                    else:
-                        break
-                elif seq[k][0] - seq[k - 1][0] <= beat * 0.55 and dist == 0:
-                    continue
-                else:
-                    if length >= 4:
-                        ok = True
-                    break
-            if ok:
-                rulong_hits += 1
-                break
-    # half-beat gap "pseudo dual": two taps ~0.5 beat apart then sweep
-    for k in range(len(single_taps) - 5):
-        dt = single_taps[k + 1][0] - single_taps[k][0]
-        if abs(dt - beat * 0.5) <= beat * 0.12 or abs(dt - beat) <= beat * 0.12:
-            seq = single_taps[k:k + 6]
-            d0 = 0
-            length = 1
-            for i in range(2, len(seq)):
-                d = _button_dir(seq[i - 1][1], seq[i][1])
-                if _button_dist(seq[i - 1][1], seq[i][1]) == 1 and d != 0 and d0 in {0, d}:
-                    d0 = d
-                    length += 1
-                else:
-                    break
-            if length >= 4:
-                rulong_hits += 1
+        for start in range(min(2, len(seq))):
+            if _same_side_sweep(seq, start) < 4:
+                continue
+            if min(_button_dist(button, seq[start][1]) for button in lead) > 2:
+                continue
+            marker = ("double", round(mt, 3))
+            if marker not in rulong_starts:
+                rulong_double_hits += 1
+                rulong_starts.add(marker)
+            break
+
+    # 半拍/一拍节奏引导：两枚相邻 lead 后，仍须接四枚同向相邻键。
+    for index in range(len(pattern_taps) - 5):
+        first, second = pattern_taps[index], pattern_taps[index + 1]
+        dt = second[0] - first[0]
+        if not (abs(dt - beat * 0.5) <= beat * 0.12 or abs(dt - beat) <= beat * 0.12):
+            continue
+        if first[1] == second[1] or _button_dist(first[1], second[1]) > 2:
+            continue
+        if _same_side_sweep(pattern_taps[index + 1:index + 7], 0) >= 4:
+            marker = ("half", round(first[0], 3))
+            if marker not in rulong_starts:
+                rulong_half_hits += 1
+                rulong_starts.add(marker)
+    rulong_hits = len(rulong_starts)
 
     # ===== 留尾 = 大跨度 slide；定位兼收快大跨卡手 =====
     large_span_slides = 0
@@ -498,7 +552,7 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
     cur = t0
     while cur <= t1 + 1e-9:
         density = float(sum(1 for e in events if cur <= e.time < cur + 1.0))
-        wtaps = [(t, b) for t, b in single_taps if cur <= t < cur + 1.0]
+        wtaps = [(t, b) for t, b in pattern_taps if cur <= t < cur + 1.0]
         big_jump = 0
         max_jump = 0
         jump_n = 0
@@ -526,18 +580,25 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
         cur += 1.0
 
     # ===== 协调：短纵 + 大位移交互 + 难协调双押夹单点 =====
-    # 大位移交互 a,b,a,b,c,d,c,d
+    # 大位移交互 a,b,a,b,c,d,c,d。单纯“大跳”不构成协调。
     coord_disp = 0
     for start in range(0, max(0, len(buttons_only) - 7)):
         seq = buttons_only[start:start + 8]
         ts = times_only[start:start + 8]
-        if ts[-1] - ts[0] > beat * 6:
+        if ts[-1] - ts[0] > two_meas or any(
+            not (0 < ts[i + 1] - ts[i] <= beat * 0.75) for i in range(7)
+        ):
             continue
         dists = [_button_dist(seq[i], seq[i + 1]) for i in range(7)]
-        if sum(1 for d in dists if d >= 2) >= 5 and len(set(seq)) >= 4:
-            # 交替感
-            if seq[0] != seq[1] and seq[0] == seq[2] or _button_dist(seq[0], seq[1]) >= 2:
-                coord_disp += 1
+        alternating = (
+            seq[0] == seq[2]
+            and seq[1] == seq[3]
+            and seq[4] == seq[6]
+            and seq[5] == seq[7]
+            and len({seq[0], seq[1], seq[4], seq[5]}) >= 4
+        )
+        if alternating and sum(1 for d in dists if d >= 2) >= 5:
+            coord_disp += 1
     # 双押夹单键密集：multi 后连续同键/单键
     dual_clamp = 0
     for mt in multi_times:
@@ -553,8 +614,8 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
 
     # IOI for 跳拍：附点/swing，而非泛不齐
     intervals = []
-    for k in range(1, len(single_taps)):
-        dt = single_taps[k][0] - single_taps[k - 1][0]
+    for k in range(1, len(pattern_taps)):
+        dt = pattern_taps[k][0] - pattern_taps[k - 1][0]
         if 0.05 <= dt <= beat * 2.5:
             intervals.append(dt)
     dotted_runs = 0
@@ -648,10 +709,14 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
         "jump": float(jump),
         "sweep_run": float(max_run),
         "short_stack_runs": float(short_stack_runs),
+        "short_stack_hot": float(short_stack_hot),
+        "short_stack_distinct_hot": float(short_stack_distinct_hot),
         "axis_hits": float(axis_hits),
         "ladder_hits": float(ladder_hits),
         "death_scythe_hits": float(death_hits),
         "rulong_hits": float(rulong_hits),
+        "rulong_double_hits": float(rulong_double_hits),
+        "rulong_half_hits": float(rulong_half_hits),
         "coord_disp": float(coord_disp),
         "dual_clamp": float(dual_clamp),
         "short_slides": float(short_slides),
@@ -668,6 +733,7 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
         "hold_gap_min": float(hold_gap_min if hold_gap_min < 900 else 9.0),
         "hold_gap_short": float(hold_gap_short),
         "hold_chain_max": float(hold_chain_max),
+        "hold_chain_span_max": float(hold_chain_span_max),
         "hold_len_cv": float(hold_len_cv),
         "hold_gap_cv": float(hold_gap_cv),
         "hold_weird": float(hold_weird),
@@ -713,18 +779,24 @@ def features_to_tag_scores(feat: dict[str, float]) -> dict[str, float]:
 
     # ===== 管子 =====
     guanzi = 0.0
-    if feat.get("hold_dense_run", 0) >= two_meas * 0.95 and feat.get("hold_dense_peak", 0) >= 0.5:
+    if (
+        feat.get("hold_dense_run", 0) >= two_meas * 0.95
+        and feat.get("hold_dense_peak", 0) >= 0.5
+        and feat.get("hold_dense_hot", 0) >= 2
+    ):
         guanzi += 0.6 + min(0.4, feat["hold_dense_peak"])
-    if feat["hold_local_peak"] >= 0.28 and feat["hold_hot_windows"] >= 2 and feat["short_hold_count"] >= 10:
-        guanzi += 0.45
-    if feat["hold_gap_short"] >= 8 and feat["hold_gap_min"] <= 0.12 and feat["short_hold_count"] >= 8:
-        guanzi += 0.55 + min(0.4, feat["hold_gap_short"] / 40.0)
-    if feat["hold_chain_max"] >= 4 and feat["short_hold_count"] >= 10:
-        guanzi += 0.3
-    if feat.get("hold_weird", 0) >= 1:
-        guanzi += 0.5  # 节奏型怪异
-    if feat["very_short_hold_count"] >= 20 and feat["hold_hot_windows"] >= 1:
-        guanzi += 0.2
+    if (
+        feat.get("hold_chain_max", 0) >= 5
+        and feat.get("hold_chain_span_max", 0) >= two_meas * 0.75
+        and feat.get("short_hold_count", 0) >= 10
+    ):
+        guanzi += 0.55
+    if (
+        feat.get("hold_weird", 0) >= 1
+        and feat.get("hold_chain_span_max", 0) >= two_meas
+        and feat.get("hold_hot_windows", 0) >= 4
+    ):
+        guanzi += 0.35  # 节奏型怪异也必须跨越局部两小节
     if guanzi >= 0.55:
         add("管子", guanzi)
 
@@ -744,9 +816,9 @@ def features_to_tag_scores(feat: dict[str, float]) -> dict[str, float]:
     elif feat.get("fast_large_span_slides", 0) >= 4 and jump_rate >= 0.08:
         add("定位", 0.45 + min(0.7, feat["fast_large_span_slides"] / 12.0))
 
-    # ===== 留尾：大跨度 slide 出张 =====
-    if feat.get("large_span_slides", 0) >= 6:
-        add("留尾", 0.45 + min(0.9, feat["large_span_slides"] / 20.0))
+    # ===== 留尾：快速大跨度 slide 出张 =====
+    if feat.get("large_span_slides", 0) >= 6 and feat.get("fast_large_span_slides", 0) >= 3:
+        add("留尾", 0.45 + min(0.9, feat["fast_large_span_slides"] / 12.0))
 
     # 手速 / 底力 / 爆发
     speed = 0.0
@@ -766,7 +838,7 @@ def features_to_tag_scores(feat: dict[str, float]) -> dict[str, float]:
     # 交互族
     if feat.get("axis_hits", 0) >= 3:
         add("轴交互", 0.5 + min(0.9, feat["axis_hits"] / 12.0))
-    if feat.get("ladder_hits", 0) >= 2:
+    if feat.get("ladder_hits", 0) >= 1:
         add("爬梯交互", 0.5 + min(0.9, feat["ladder_hits"] / 10.0))
     if trill_rate >= 0.035 and feat["trill"] >= 12:
         # 若已被更细标签覆盖，仍可保留普通交互但稍弱
@@ -788,20 +860,15 @@ def features_to_tag_scores(feat: dict[str, float]) -> dict[str, float]:
     # 死镰 / 如龙（重定义）
     if feat.get("death_scythe_hits", 0) >= 2:
         add("死镰", 0.55 + min(0.9, feat["death_scythe_hits"] / 8.0))
-    if feat.get("rulong_hits", 0) >= 3:
+    if feat.get("rulong_hits", 0) >= 2:
         add("如龙", 0.55 + min(0.9, feat["rulong_hits"] / 12.0))
-    # 旧 wifi/curve 不再直接打如龙，仅弱辅助
-    elif feat["wifi_slides"] >= 6 and feat.get("rulong_hits", 0) >= 1:
-        add("如龙", 0.4 + min(0.5, feat["wifi_slides"] / 15.0))
 
     # 协调（原拆谱）
     coord = 0.0
-    if feat.get("short_stack_runs", 0) >= 4:
-        coord += 0.45 + min(0.4, feat["short_stack_runs"] / 15.0)
-    if feat.get("coord_disp", 0) >= 3:
-        coord += 0.45 + min(0.4, feat["coord_disp"] / 12.0)
-    if feat.get("dual_clamp", 0) >= 6 and jump_rate >= 0.06:
-        coord += 0.3
+    if feat.get("short_stack_hot", 0) >= 4 and feat.get("short_stack_distinct_hot", 0) >= 4:
+        coord += 0.55 + min(0.4, feat["short_stack_hot"] / 12.0)
+    if feat.get("coord_disp", 0) >= 1:
+        coord += 0.6 + min(0.4, feat["coord_disp"] / 8.0)
     if coord >= 0.55:
         add("协调", coord)
 
@@ -853,18 +920,26 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
 
     if "管子" in scores and feat.get("short_hold_count", 0) >= 8 and (
         feat.get("hold_dense_run", 0) >= two_meas * 0.9
-        or feat.get("hold_gap_short", 0) >= 8
-        or feat.get("hold_weird", 0) >= 1
+        and feat.get("hold_dense_peak", 0) >= 0.5
+        and feat.get("hold_dense_hot", 0) >= 2
+        or (
+            feat.get("hold_chain_max", 0) >= 5
+            and feat.get("hold_chain_span_max", 0) >= two_meas * 0.75
+        )
     ):
         scores["管子"] = max(scores["管子"], tag_weight("管子") * 1.08)
     if "双押" in scores and feat.get("dual_dense_run", 0) >= two_meas * 0.95:
         scores["双押"] = max(scores["双押"], tag_weight("双押") * 1.08)
     if "死镰" in scores and feat.get("death_scythe_hits", 0) >= 3:
         scores["死镰"] = max(scores["死镰"], tag_weight("死镰") * 1.1)
-    if "如龙" in scores and feat.get("rulong_hits", 0) >= 4:
+    if "如龙" in scores and feat.get("rulong_hits", 0) >= 2:
         scores["如龙"] = max(scores["如龙"], tag_weight("如龙") * 1.08)
     if "协调" in scores and (
-        feat.get("short_stack_runs", 0) >= 5 or feat.get("coord_disp", 0) >= 4
+        (
+            feat.get("short_stack_hot", 0) >= 4
+            and feat.get("short_stack_distinct_hot", 0) >= 4
+        )
+        or feat.get("coord_disp", 0) >= 1
     ):
         scores["协调"] = max(scores["协调"], tag_weight("协调") * 1.05)
 
@@ -872,22 +947,34 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
 
     forced: list[str] = []
     if "管子" in scores and (
-        feat.get("hold_weird", 0) >= 1
-        or (feat.get("hold_gap_short", 0) >= 8 and feat.get("short_hold_count", 0) >= 8)
-        or feat.get("hold_dense_run", 0) >= two_meas
+        (
+            feat.get("hold_dense_run", 0) >= two_meas
+            and feat.get("hold_dense_peak", 0) >= 0.5
+            and feat.get("hold_dense_hot", 0) >= 2
+        )
+        or (
+            feat.get("hold_chain_max", 0) >= 5
+            and feat.get("hold_chain_span_max", 0) >= two_meas * 0.75
+        )
     ):
         forced.append("管子")
     if "双押" in scores and feat.get("dual_dense_run", 0) >= two_meas and feat.get("dual_dense_peak", 0) >= 0.75:
         forced.append("双押")
     if "死镰" in scores and feat.get("death_scythe_hits", 0) >= 3:
         forced.append("死镰")
-    if "如龙" in scores and feat.get("rulong_hits", 0) >= 5:
+    if "如龙" in scores and feat.get("rulong_hits", 0) >= 3:
         forced.append("如龙")
     if "轴交互" in scores and feat.get("axis_hits", 0) >= 4:
         forced.append("轴交互")
-    if "爬梯交互" in scores and feat.get("ladder_hits", 0) >= 3:
+    if "爬梯交互" in scores and feat.get("ladder_hits", 0) >= 1:
         forced.append("爬梯交互")
-    if "协调" in scores and feat.get("short_stack_runs", 0) >= 6:
+    if "协调" in scores and (
+        (
+            feat.get("short_stack_hot", 0) >= 4
+            and feat.get("short_stack_distinct_hot", 0) >= 4
+        )
+        or feat.get("coord_disp", 0) >= 1
+    ):
         forced.append("协调")
 
     if forced:

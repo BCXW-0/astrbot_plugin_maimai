@@ -23,24 +23,6 @@
     "type": "string",
     "default": ""
   },
-  "chart_tag_llm_provider_id": {
-    "description": "谱面分析专用模型",
-    "hint": "可选。填写 AstrBot 中的模型 Provider ID 后，本地谱面一键分析会优先使用该模型；留空则使用当前默认模型。",
-    "type": "string",
-    "default": ""
-  },
-  "chart_tag_llm_timeout_seconds": {
-    "description": "谱面分析单次超时",
-    "hint": "单个难度调用对话模型的最长等待时间，范围 5 至 600 秒，默认 150 秒；超时后继续分析后续难度。",
-    "type": "int",
-    "default": 150
-  },
-  "chart_tag_llm_concurrency": {
-    "description": "谱面分析并发数",
-    "hint": "同时调用对话模型的难度数量，范围 1 至 8；服务限流时建议设为 1。",
-    "type": "int",
-    "default": 4
-  },
   "roast_persona_prompt_sample_limit": {
     "description": "锐评人格注入样本上限",
     "hint": "人格库可无限存储，但每次锐评只注入有限样本，避免 LLM 上下文过长。默认 120。",

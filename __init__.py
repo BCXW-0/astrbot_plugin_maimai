@@ -1,8 +1,12 @@
+import logging
 import uuid
 from pathlib import Path
 from typing import Dict, List
 
-from astrbot.api import logger
+try:
+    from astrbot.api import logger
+except ModuleNotFoundError:  # Offline chart metadata tools do not require AstrBot.
+    logger = logging.getLogger("astrbot_plugin_maimaidx")
 
 ### 必须
 log = logger

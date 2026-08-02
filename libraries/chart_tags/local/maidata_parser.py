@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """simai / maidata.txt 解析。
 
-语法要点（社区 simai 记法 + OneCat 官谱 maidata）：
+语法要点（社区 simai 记法与本地 Levels 文件）：
 - 元数据：&title &wholebpm &lv_N &des_N &inote_N
 - 难度号：2=Basic 3=Advanced 4=Expert 5=Master 6=Re:Master
 - (bpm) 变速；{n} 每小节 n 等分；逗号推进一格
@@ -186,8 +186,8 @@ def parse_inote(body: str, default_bpm: float = 120.0) -> tuple[list[NoteEvent],
     return events, first_bpm
 
 
-def _slide_path(start: str, end: str, shape: str) -> tuple[str, ...]:
-    """Return discrete ring areas crossed by a slide, including both endpoints."""
+def _ring_segment(start: str, end: str, shape: str) -> tuple[str, ...]:
+    """Return one ring segment, including both endpoints."""
     try:
         first = int(start)
         last = int(end)
@@ -212,6 +212,21 @@ def _slide_path(start: str, end: str, shape: str) -> tuple[str, ...]:
         if current == last:
             return tuple(str(value) for value in result)
     return (str(first), str(last))
+
+
+def _slide_path_for_anchors(anchors: tuple[str, ...], shape: str) -> tuple[str, ...]:
+    """Join every explicit simai slide anchor instead of dropping V-shaped points."""
+    if not anchors:
+        return ()
+    result = [str(anchors[0])]
+    for start, end in zip(anchors, anchors[1:]):
+        segment = _ring_segment(str(start), str(end), shape)
+        result.extend(segment[1:])
+    return tuple(result)
+
+
+def _slide_path(start: str, end: str, shape: str) -> tuple[str, ...]:
+    return _slide_path_for_anchors((str(start), str(end)), shape)
 
 
 def _parse_group(token: str, time: float, bpm: float) -> list[NoteEvent]:
@@ -240,18 +255,24 @@ def _parse_atom(atom: str, time: float, bpm: float) -> list[NoteEvent]:
     if m:
         return [NoteEvent(time=time, kind="hold", buttons=(m.group(1),), duration=_duration_seconds(bpm, m.group(2)), is_break=is_break, raw=raw, bpm=bpm, is_ex=("x" in atom))]
 
-    m = re.match(r"^([1-8])([ppqqwWV<>\^\-zZ$?!@]*)([1-8])(?:b|x|f)*\[([^\]]+)\]$", atom)
-    if m:
+    slide_match = re.match(r"^([^\[]+)\[([^\]]+)\]$", atom)
+    if slide_match:
+        prefix = slide_match.group(1)
+        anchors = tuple(re.findall(r"[1-8]", prefix))
+    else:
+        anchors = ()
+    if len(anchors) >= 2:
+        shape = re.sub(r"[1-8bxfh]", "", prefix, flags=re.IGNORECASE) or "-"
         return [NoteEvent(
             time=time,
             kind="slide",
-            buttons=(m.group(1), m.group(3)),
-            shape=m.group(2) or "-",
-            duration=_duration_seconds(bpm, m.group(4)),
+            buttons=anchors,
+            shape=shape,
+            duration=_duration_seconds(bpm, slide_match.group(2)),
             is_break=is_break,
             raw=raw,
             bpm=bpm,
-            path=_slide_path(m.group(1), m.group(3), m.group(2) or "-"),
+            path=_slide_path_for_anchors(anchors, shape),
             is_ex=("x" in atom),
         )]
 
@@ -274,4 +295,4 @@ def _parse_atom(atom: str, time: float, bpm: float) -> list[NoteEvent]:
     sm = re.search(r"\[([^\]]+)\]", atom)
     dur = _duration_seconds(bpm, sm.group(1)) if sm else 0.0
     kind = "slide" if sm and len(buttons) >= 2 else ("hold" if "h[" in atom else "tap")
-    return [NoteEvent(time=time, kind=kind, buttons=buttons, duration=dur, is_break=("b" in atom), raw=raw, bpm=bpm, path=_slide_path(buttons[0], buttons[-1], "-") if kind == "slide" and len(buttons) >= 2 else (), is_ex=("x" in atom))]
+    return [NoteEvent(time=time, kind=kind, buttons=buttons, duration=dur, is_break=("b" in atom), raw=raw, bpm=bpm, path=_slide_path_for_anchors(buttons, "-") if kind == "slide" and len(buttons) >= 2 else (), is_ex=("x" in atom))]
