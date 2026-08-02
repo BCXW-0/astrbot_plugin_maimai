@@ -493,6 +493,12 @@ class AutoTagJob:
                 "selected": 0,
                 "total": 0,
                 "processed": 0,
+                "downloaded": 0,
+                "skipped_existing": 0,
+                "skipped_invalid": 0,
+                "failed": 0,
+                "current": "正在筛选 OneCat 谱面...",
+                "last_error": "",
                 "started_at": now_text(),
                 "error": "",
             })
