@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Validate Codex chart records and train the review-only local classifier."""
+"""Validate chart records and train the local classifier used by WebUI auto analysis."""
 
 import json
 import time
@@ -256,8 +256,8 @@ def train_local_model(records: list[dict[str, Any]]) -> dict[str, Any]:
         "best_valid_loss": round(best_valid_loss, 8),
         "loss_file": str(LOSS_FILE.relative_to(Root)),
         "model_file": str(MODEL_FILE.relative_to(Root)),
-        "formal_pipeline_enabled": False,
-        "review_status": "pending",
+        "formal_pipeline_enabled": True,
+        "review_status": "available_for_webui_auto_analysis",
         "created_at": now(),
     }
     write_json_atomic(MODEL_META_FILE, metadata)
@@ -305,7 +305,7 @@ def build_report(records: list[dict[str, Any]], model: dict[str, Any]) -> str:
         f"- 随机种子：`{manifest.get('random_seed')}`；候选有效难度：{manifest.get('eligible_pool_count')}；强制重算：是",
         f"- 样本：{len(records)} / {manifest.get('sample_size_requested')}；完整标注成功：{sum(item.get('model_call_status') == 'success' for item in records)}",
         f"- 数据集：`{DATASET_FILE.relative_to(Root)}`；每条记录含完整 `inote`、事件、BPM 段、窗口、候选和标签位置",
-        "- 正式标签管线：`formal_pipeline_enabled=false`；本地模型等待人工审阅，不会自动接管正式标签",
+        "- 本地模型可由 WebUI 自动打标任务使用；任务执行后将模型结果写入正式标签文件的 `model_tags` 和 `final_tags`",
         "",
         "## 撞尾依据",
         "",
@@ -344,14 +344,14 @@ def build_report(records: list[dict[str, Any]], model: dict[str, Any]) -> str:
         f"- 模型：`{model['model_file']}`；元数据：`{model['model_meta']}`；Loss 曲线：`{model['loss_file']}`。",
         f"- 训练/验证：{model.get('train_records', '-')} / {model.get('valid_records', '-')}；特征数：{model.get('feature_count', '-')}；最佳 epoch：{model.get('best_epoch', '-')}；最佳验证 Loss：{model.get('best_valid_loss', '-')}",
         "- 训练目标是多标签分类；训练集只接收 100 条完整、成功、定数不低于 12.6 的记录，不把缺失结果当作否定标签。",
-        "- Loss 文件按 epoch 保存训练/验证 Loss 和微平均指标，可直接绘制曲线；模型审阅前不会写入正式 `final_tags`。",
+        "- Loss 文件按 epoch 保存训练/验证 Loss 和微平均指标，可直接绘制曲线；正式标签文件只在管理员从 WebUI 启动分析后更新。",
         "",
         "## 文件清单",
         "",
         f"- 样本清单：`{SAMPLE_MANIFEST_FILE.relative_to(Root)}`",
         f"- 进度：`{PROGRESS_FILE.relative_to(Root)}`",
         f"- Codex 审阅清单：`{REVIEW_FILE.relative_to(Root)}`（正式标签库不写入审阅结果）",
-        "- 正式标签库：`static/maimaidx_chart_tags.json`（本轮已清除旧标注，等待人工确认后再单独维护）",
+        "- 正式标签库：`static/maimaidx_chart_tags.json`（由 WebUI 自动分析任务按映射条目更新）",
     ])
     return "\n".join(lines) + "\n"
 

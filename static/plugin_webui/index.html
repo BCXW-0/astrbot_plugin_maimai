@@ -15,6 +15,7 @@
     <nav class="nav-tabs">
       <button class="nav active" data-tab="overview">总览</button>
       <button class="nav" data-tab="persona">锐评人格</button>
+      <button class="nav" data-tab="auto-tags">自动打标</button>
       <button class="nav" data-tab="tags">谱面标签</button>
       <button class="nav" data-tab="config">配置管理</button>
       <button class="nav" data-tab="commands">命令说明</button>
@@ -70,6 +71,25 @@
         <aside class="card side-list"><div class="card-head"><h3>人格库</h3><button id="refreshBtn" class="secondary small-btn">刷新</button></div><div id="list" class="persona-list"></div></aside>
       </div>
     </section>
+    <section id="auto-tags" class="tab-panel">
+      <div class="grid auto-layout">
+        <article class="card auto-control-card">
+          <div class="card-head"><div><h3>自动打标</h3><p class="muted">本地谱面文件与本地标签模型</p></div><span id="autoModelBadge" class="badge">读取中</span></div>
+          <div id="autoTagsStatusBox" class="tag-grid"><div class="empty">正在读取自动打标状态...</div></div>
+          <div class="row auto-actions"><button id="openAutoDownloadBtn" class="secondary">下载谱面</button><button id="openAutoAnalyzeBtn">谱面分析</button><button id="autoStopBtn" class="danger">停止任务</button><button id="refreshAutoTagsBtn" class="ghost">刷新</button></div>
+          <div id="autoTagsResult" class="result"></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><div><h3>打标检索</h3><p class="muted">ID、曲名、艺术家、谱师或定数</p></div><button id="autoSearchBtn" class="secondary small-btn">搜索</button></div>
+          <div class="auto-search-row"><input id="autoSearchInput" placeholder="输入检索内容"><select id="autoSearchDs"><option value="">全部定数</option><option value="10.0-12.5">10.0 - 12.5</option><option value="12.6-13.9">12.6 - 13.9</option><option value="14.0-15.0">14.0 - 15.0</option></select></div>
+          <div id="autoTagResultsBox" class="chart-result-list"></div>
+        </article>
+      </div>
+      <article class="card auto-detail-card">
+        <h3>谱面详情</h3>
+        <div id="autoTagDetailBox" class="empty">先从右侧选择一个谱面</div>
+      </article>
+    </section>
     <section id="tags" class="tab-panel">
       <div class="card">
         <h3>谱面标签</h3>
@@ -104,6 +124,29 @@
       <button class="modal-close" onclick="closePersonaModal()">&times;</button>
     </div>
     <div id="personaModalList" class="modal-list"></div>
+  </div>
+</div>
+<div id="autoDownloadModal" class="modal">
+  <div class="modal-content glass auto-modal">
+    <div class="modal-header"><h3>下载谱面</h3><button id="closeAutoDownloadBtn" class="modal-close" title="关闭">&times;</button></div>
+    <div class="range-grid">
+      <label>最低定数 <output id="downloadMinDsValue">12.6</output><input id="downloadMinDs" type="range" min="10" max="15" step="0.1" value="12.6"></label>
+      <label>最高定数 <output id="downloadMaxDsValue">15.0</output><input id="downloadMaxDs" type="range" min="10" max="15" step="0.1" value="15"></label>
+    </div>
+    <fieldset class="mode-field"><legend>下载方式</legend><label class="radio-option"><input type="radio" name="downloadMode" value="all" checked><span>全部下载</span></label><label class="radio-option"><input type="radio" name="downloadMode" value="missing"><span>仅未下载</span></label><label class="radio-option"><input type="radio" name="downloadMode" value="search"><span>搜索下载</span></label></fieldset>
+    <label id="downloadSearchLabel" class="hidden-field">搜索词<input id="downloadSearchQuery" placeholder="ID、曲名、别名或艺术家"></label>
+    <div class="row"><button id="confirmAutoDownloadBtn">开始下载</button><button id="cancelAutoDownloadBtn" class="ghost">取消</button></div>
+  </div>
+</div>
+<div id="autoAnalyzeModal" class="modal">
+  <div class="modal-content glass auto-modal">
+    <div class="modal-header"><h3>谱面分析</h3><button id="closeAutoAnalyzeBtn" class="modal-close" title="关闭">&times;</button></div>
+    <div class="range-grid">
+      <label>最低定数 <output id="analyzeMinDsValue">12.6</output><input id="analyzeMinDs" type="range" min="10" max="15" step="0.1" value="12.6"></label>
+      <label>最高定数 <output id="analyzeMaxDsValue">15.0</output><input id="analyzeMaxDs" type="range" min="10" max="15" step="0.1" value="15"></label>
+    </div>
+    <fieldset class="mode-field"><legend>分析方式</legend><label class="radio-option"><input type="radio" name="analyzeMode" value="new" checked><span>新谱计算</span></label><label class="radio-option"><input type="radio" name="analyzeMode" value="force"><span>强制重算</span></label></fieldset>
+    <div class="row"><button id="confirmAutoAnalyzeBtn">开始分析</button><button id="cancelAutoAnalyzeBtn" class="ghost">取消</button></div>
   </div>
 </div>
 <div id="toast" class="toast"></div>

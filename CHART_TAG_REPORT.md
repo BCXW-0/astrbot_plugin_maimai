@@ -5,7 +5,8 @@
 - 随机种子：`2026080202`；候选有效难度：581；强制重算：是
 - 样本：100 / 100；完整标注成功：100
 - 数据集：`static/chart_tag_dataset.jsonl`；每条记录含完整 `inote`、事件、BPM 段、窗口、候选和标签位置
-- 正式标签管线：`formal_pipeline_enabled=false`；本地模型等待人工审阅，不会自动接管正式标签
+- 本地模型可由 WebUI 自动打标任务使用；任务执行后将模型结果写入正式标签文件的 `model_tags` 和 `final_tags`
+- 当前标签库映射：746 个有效难度条目、414 个本地谱面文件；每条记录显式保存 `static/maimaidx_chart_tags.json`、标签 key 和源文件哈希，`chart_mapping` 支持标签 key 反查，`chart_file_mapping` 支持文件反查全部难度。
 
 ## 撞尾依据
 
@@ -156,11 +157,11 @@
 - 模型：`static/maimai_chart_tag_model.npz`；元数据：`static/maimai_chart_tag_model.json`；Loss 曲线：`static/chart_tag_loss.json`。
 - 训练/验证：80 / 20；特征数：83；最佳 epoch：240；最佳验证 Loss：0.27187529
 - 训练目标是多标签分类；训练集只接收 100 条完整、成功、定数不低于 12.6 的记录，不把缺失结果当作否定标签。
-- Loss 文件按 epoch 保存训练/验证 Loss 和微平均指标，可直接绘制曲线；模型审阅前不会写入正式 `final_tags`。
+- Loss 文件按 epoch 保存训练/验证 Loss 和微平均指标，可直接绘制曲线；正式标签文件只在管理员从 WebUI 启动分析后更新。
 
 ## 文件清单
 
 - 样本清单：`static/chart_tag_sample_manifest.json`
 - 进度：`static/chart_tag_progress.json`
 - Codex 审阅清单：`static/chart_tag_review.json`（正式标签库不写入审阅结果）
-- 正式标签库：`static/maimaidx_chart_tags.json`（本轮已清除旧标注，等待人工确认后再单独维护）
+- 正式标签库：`static/maimaidx_chart_tags.json`（由 WebUI 自动分析任务按映射条目更新）

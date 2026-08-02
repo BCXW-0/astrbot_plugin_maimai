@@ -87,11 +87,27 @@ def build_chart_tag_payload() -> dict[str, Any]:
                 for field in (
                     "manual_tags",
                     "llm_tags",
+                    "model_tags",
                     "final_tags",
                     "tags",
                     "tag_scores",
+                    "model_scores",
+                    "model_probabilities",
+                    "model_features",
+                    "model_windows",
                     "tag_categories",
                     "evidence",
+                    "tag_positions",
+                    "collision_candidates",
+                    "accepted_collision_ids",
+                    "model_metadata",
+                    "analysis_status",
+                    "analysis_engine",
+                    "analysis_version",
+                    "source_file",
+                    "source_path",
+                    "source_sha256",
+                    "mapping",
                     "tag_status",
                     "tag_error",
                     "tag_rule_version",
@@ -100,8 +116,10 @@ def build_chart_tag_payload() -> dict[str, Any]:
                     if field in old_item:
                         item[field] = old_item[field]
             charts[chart_key] = item
+    old_mapping = old_data.get("chart_mapping") if isinstance(old_data, dict) else {}
+    old_file_mapping = old_data.get("chart_file_mapping") if isinstance(old_data, dict) else {}
     return {
-        "version": 1,
+        "version": max(3, int(old_data.get("version", 1) or 1)) if isinstance(old_data, dict) else 3,
         "generated_at": generated_at,
         "sort": "song_id asc, level_index asc",
         "target_difficulties": [DIFFICULTY_NAMES[index] for index in TARGET_LEVEL_INDEXES],
@@ -109,6 +127,9 @@ def build_chart_tag_payload() -> dict[str, Any]:
         "tag_rule_version": TAG_RULE_VERSION,
         "allowed_tags": ALLOWED_TAGS,
         "tag_weights": TAG_WEIGHTS,
+        "mapping_version": old_data.get("mapping_version", 1) if isinstance(old_data, dict) else 1,
+        "chart_mapping": old_mapping if isinstance(old_mapping, dict) else {},
+        "chart_file_mapping": old_file_mapping if isinstance(old_file_mapping, dict) else {},
         "charts": charts,
     }
 

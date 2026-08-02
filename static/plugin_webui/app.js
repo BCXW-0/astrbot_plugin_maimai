@@ -22,13 +22,22 @@ const tagSearchBtn = $('tagSearchBtn');
 const tagResultsBox = $('tagResultsBox');
 const tagEditorBox = $('tagEditorBox');
 const tagManageResultBox = $('tagManageResult');
+const autoTagsStatusBox = $('autoTagsStatusBox');
+const autoTagsResultBox = $('autoTagsResult');
+const autoModelBadge = $('autoModelBadge');
+const autoTagResultsBox = $('autoTagResultsBox');
+const autoTagDetailBox = $('autoTagDetailBox');
 const toast = $('toast');
 const modal = $('personaModal');
 const modalList = $('personaModalList');
+const autoDownloadModal = $('autoDownloadModal');
+const autoAnalyzeModal = $('autoAnalyzeModal');
 let pendingForce = false;
 let cachedPersonas = [];
 let allowedChartTags = [];
 let currentChartTagKey = '';
+let currentAutoTagKey = '';
+let autoStatusTimer = null;
 
 function api(path) {
   const token = location.search.replace(/^\?/, '');
@@ -150,6 +159,178 @@ async function stopTagsJob() {
   const data = await jsonFetch('/api/chart_tags/stop', { method: 'POST' });
   setTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
   await loadTagsStatus();
+}
+
+function setAutoTagsResult(ok, message) {
+  if (!autoTagsResultBox) return;
+  autoTagsResultBox.className = 'result ' + (ok ? 'ok' : 'err');
+  autoTagsResultBox.textContent = message;
+  showToast(message);
+}
+
+function dsRangeValue(value) {
+  const parts = String(value || '').split('-').map(Number);
+  if (parts.length !== 2 || parts.some(Number.isNaN)) return [10, 15];
+  return parts;
+}
+
+function renderAutoTagsStatus(data) {
+  if (!autoTagsStatusBox) return;
+  const total = Number(data.catalog_total || 0);
+  const analyzed = Number(data.catalog_analyzed || 0);
+  const tagged = Number(data.catalog_tagged || 0);
+  const percent = total ? Math.round(analyzed * 1000 / total) / 10 : 0;
+  const taskTotal = Number(data.total || 0);
+  const processed = Number(data.processed || 0);
+  const taskPercent = taskTotal ? Math.min(100, Math.round(processed * 1000 / taskTotal) / 10) : (data.running ? 0 : 100);
+  const taskName = data.task === 'download' ? '下载谱面' : data.task === 'analysis' ? '谱面分析' : '暂无任务';
+  const statusName = data.running ? '运行中' : ({ completed: '已完成', stopped: '已停止', failed: '失败' }[data.status] || '未运行');
+  autoModelBadge.textContent = data.model_metadata?.best_epoch ? '模型已加载' : '模型待加载';
+  autoTagsStatusBox.innerHTML = '<div class="tag-hero"><div><b>' + percent + '%</b><span>本地谱面已分析</span></div><div class="tag-ring" style="--p:' + percent + '%"></div></div>' +
+    '<div class="tag-stats"><div><span>有效谱面</span><b>' + total + '</b></div><div><span>已分析</span><b>' + analyzed + '</b></div><div><span>有模型标签</span><b>' + tagged + '</b></div></div>' +
+    '<div class="auto-progress"><div class="auto-progress-head"><strong>' + taskName + '</strong><span class="badge">' + statusName + '</span></div><div class="auto-progress-bar"><span style="width:' + taskPercent + '%"></span></div><p class="muted">' + processed + ' / ' + taskTotal + ' · ' + escapeHtml(data.current || data.message || '等待操作') + '</p><p class="muted">' + escapeHtml(data.error || data.last_error || '模型：' + (data.model_file || '未找到')) + '</p></div>';
+}
+
+async function loadAutoTagsStatus() {
+  if (!autoTagsStatusBox) return;
+  const data = await jsonFetch('/api/auto_tags/status');
+  if (!data.ok) {
+    autoTagsStatusBox.innerHTML = '<div class="empty">自动打标状态加载失败</div>';
+    return data;
+  }
+  renderAutoTagsStatus(data);
+  if (data.running) {
+    clearTimeout(autoStatusTimer);
+    autoStatusTimer = setTimeout(loadAutoTagsStatus, 1600);
+  }
+  return data;
+}
+
+function openAutoModal(target) {
+  target.classList.add('show');
+}
+
+function closeAutoModal(target) {
+  target.classList.remove('show');
+}
+
+function updateRangeLabels(minId, maxId, minValueId, maxValueId) {
+  const minInput = $(minId);
+  const maxInput = $(maxId);
+  if (Number(minInput.value) > Number(maxInput.value)) {
+    if (document.activeElement === minInput) maxInput.value = minInput.value;
+    else minInput.value = maxInput.value;
+  }
+  $(minValueId).textContent = Number(minInput.value).toFixed(1);
+  $(maxValueId).textContent = Number(maxInput.value).toFixed(1);
+}
+
+function setDownloadModeVisibility() {
+  const selected = document.querySelector('input[name="downloadMode"]:checked');
+  $('downloadSearchLabel').classList.toggle('show', selected?.value === 'search');
+}
+
+async function startAutoDownload() {
+  const mode = document.querySelector('input[name="downloadMode"]:checked')?.value || 'all';
+  const query = $('downloadSearchQuery').value.trim();
+  if (mode === 'search' && !query) {
+    setAutoTagsResult(false, '搜索下载需要填写搜索词');
+    return;
+  }
+  const data = await jsonFetch('/api/auto_tags/download', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ min_ds: Number($('downloadMinDs').value), max_ds: Number($('downloadMaxDs').value), mode, query })
+  });
+  setAutoTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
+  if (data.ok) {
+    closeAutoModal(autoDownloadModal);
+    await loadAutoTagsStatus();
+  }
+}
+
+async function startAutoAnalyze() {
+  const mode = document.querySelector('input[name="analyzeMode"]:checked')?.value || 'new';
+  const data = await jsonFetch('/api/auto_tags/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ min_ds: Number($('analyzeMinDs').value), max_ds: Number($('analyzeMaxDs').value), force: mode === 'force' })
+  });
+  setAutoTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
+  if (data.ok) {
+    closeAutoModal(autoAnalyzeModal);
+    await loadAutoTagsStatus();
+  }
+}
+
+async function stopAutoTags() {
+  const data = await jsonFetch('/api/auto_tags/stop', { method: 'POST' });
+  setAutoTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
+  await loadAutoTagsStatus();
+}
+
+async function searchAutoTags() {
+  if (!autoTagResultsBox) return;
+  const range = dsRangeValue($('autoSearchDs').value);
+  const query = $('autoSearchInput').value.trim();
+  autoTagResultsBox.innerHTML = '<div class="empty">正在搜索谱面...</div>';
+  const data = await jsonFetch('/api/auto_tags/search?q=' + encodeURIComponent(query) + '&min_ds=' + range[0] + '&max_ds=' + range[1] + '&limit=100');
+  if (!data.ok) {
+    autoTagResultsBox.innerHTML = '<div class="empty">' + escapeHtml(data.message || '搜索失败') + '</div>';
+    return;
+  }
+  renderAutoTagSearchResults(data.items || []);
+}
+
+function renderAutoTagSearchResults(items) {
+  if (!items.length) {
+    autoTagResultsBox.innerHTML = '<div class="empty">没有找到匹配谱面</div>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  items.forEach(item => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chart-result';
+    button.dataset.key = item.key;
+    button.innerHTML = '<strong></strong><span></span><small></small>';
+    button.querySelector('strong').textContent = item.title || item.key;
+    button.querySelector('span').textContent = item.song_id + ' · ' + item.difficulty + ' · ' + item.level + ' · ' + item.ds + ' · ' + (item.artist || '');
+    button.querySelector('small').textContent = '状态：' + (item.analysis_status === 'completed' ? '已分析' : '未分析') + ' · 标签：' + tagText(item.final_tags);
+    frag.appendChild(button);
+  });
+  autoTagResultsBox.innerHTML = '';
+  autoTagResultsBox.appendChild(frag);
+}
+
+function renderAutoTagDetail(item) {
+  const tags = item.model_tags || item.llm_tags || [];
+  const mapping = item.mapping || {};
+  const fileMapping = item.file_mapping || {};
+  const probabilities = Object.entries(item.model_probabilities || {}).sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 10);
+  const probabilityText = probabilities.map(([tag, score]) => escapeHtml(tag) + ' ' + (Number(score) * 100).toFixed(1) + '%').join(' · ') || '无';
+  const windows = (item.model_windows || []).slice(0, 5).map(window => '[' + window.start + 's - ' + window.end + 's] ' + window.sequence).join('\n');
+  autoTagDetailBox.className = '';
+  autoTagDetailBox.innerHTML = '<div class="chart-editor-head"><div><h4></h4><p class="muted"></p></div><span class="badge"></span></div>' +
+    '<div class="auto-tag-list">' + (tags.length ? tags.map(tag => '<span>' + escapeHtml(tag) + '</span>').join('') : '<span>无模型标签</span>') + '</div>' +
+    '<div class="auto-detail-grid"><div><span class="muted">艺术家</span><b>' + escapeHtml(item.artist || '未知') + '</b></div><div><span class="muted">谱师</span><b>' + escapeHtml(item.charter || '未知') + '</b></div><div><span class="muted">定数 / BPM</span><b>' + escapeHtml(item.ds ?? '未知') + ' / ' + escapeHtml(item.bpm ?? '未知') + '</b></div><div><span class="muted">最终标签</span><b>' + escapeHtml(tagText(item.final_tags)) + '</b></div><div><span class="muted">模型概率 Top 10</span><b>' + probabilityText + '</b></div><div><span class="muted">标签文件键</span><b>' + escapeHtml(item.key || '未知') + '</b></div><div><span class="muted">映射 / 谱面段</span><b>' + escapeHtml((mapping.mapping_id || item.mapping_id || '') + ' · ' + (mapping.chart_section || item.chart_section || '')) + '</b></div><div><span class="muted">谱面文件</span><b>' + escapeHtml(mapping.chart_file || item.chart_file || item.source_file || item.source_path || '未知') + '</b></div><div><span class="muted">文件 SHA-256</span><b>' + escapeHtml(mapping.chart_file_sha256 || item.source_sha256 || '未知') + '</b></div><div><span class="muted">同文件难度</span><b>' + escapeHtml((fileMapping.chart_sections || []).map(section => section.tag_file_key + ' · ' + section.chart_section).join(' / ') || '未知') + '</b></div></div>' +
+    '<details class="evidence-box"><summary>查看分析窗口</summary><pre class="auto-code"></pre></details>';
+  autoTagDetailBox.querySelector('h4').textContent = item.title || item.key;
+  autoTagDetailBox.querySelector('.chart-editor-head .muted').textContent = item.song_id + ' · ' + item.difficulty + ' · ' + item.level;
+  autoTagDetailBox.querySelector('.badge').textContent = item.analysis_status === 'completed' ? '已完成' : (item.analysis_status || '未分析');
+  autoTagDetailBox.querySelector('.auto-code').textContent = windows || '暂无分析窗口';
+}
+
+async function loadAutoTagDetail(key) {
+  currentAutoTagKey = key;
+  autoTagDetailBox.className = 'empty';
+  autoTagDetailBox.textContent = '正在读取谱面标签...';
+  const data = await jsonFetch('/api/auto_tags/' + encodeURIComponent(key));
+  if (!data.ok) {
+    autoTagDetailBox.textContent = data.message || '读取失败';
+    return;
+  }
+  renderAutoTagDetail(data.item);
 }
 
 function setTagManageResult(ok, message) {
@@ -484,7 +665,7 @@ async function importJson() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadOverview(), loadCommands(), loadConfig(), loadList(), loadTagsStatus(), searchChartTags()]);
+  await Promise.all([loadOverview(), loadCommands(), loadConfig(), loadList(), loadTagsStatus(), loadAutoTagsStatus(), searchChartTags(), searchAutoTags()]);
 }
 
 function openPersonaModal() {
@@ -521,6 +702,33 @@ tagSearchInput.addEventListener('keydown', event => {
     event.preventDefault();
     withLoading(tagSearchBtn, searchChartTags);
   }
+});
+$('openAutoDownloadBtn').addEventListener('click', () => openAutoModal(autoDownloadModal));
+$('openAutoAnalyzeBtn').addEventListener('click', () => openAutoModal(autoAnalyzeModal));
+$('closeAutoDownloadBtn').addEventListener('click', () => closeAutoModal(autoDownloadModal));
+$('cancelAutoDownloadBtn').addEventListener('click', () => closeAutoModal(autoDownloadModal));
+$('closeAutoAnalyzeBtn').addEventListener('click', () => closeAutoModal(autoAnalyzeModal));
+$('cancelAutoAnalyzeBtn').addEventListener('click', () => closeAutoModal(autoAnalyzeModal));
+$('confirmAutoDownloadBtn').addEventListener('click', () => withLoading($('confirmAutoDownloadBtn'), startAutoDownload));
+$('confirmAutoAnalyzeBtn').addEventListener('click', () => withLoading($('confirmAutoAnalyzeBtn'), startAutoAnalyze));
+$('autoStopBtn').addEventListener('click', () => withLoading($('autoStopBtn'), stopAutoTags));
+$('refreshAutoTagsBtn').addEventListener('click', () => withLoading($('refreshAutoTagsBtn'), loadAutoTagsStatus));
+$('autoSearchBtn').addEventListener('click', () => withLoading($('autoSearchBtn'), searchAutoTags));
+$('autoSearchInput').addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    withLoading($('autoSearchBtn'), searchAutoTags);
+  }
+});
+$('autoSearchDs').addEventListener('change', searchAutoTags);
+document.querySelectorAll('input[name="downloadMode"]').forEach(input => input.addEventListener('change', setDownloadModeVisibility));
+['downloadMinDs', 'downloadMaxDs'].forEach(id => $(id).addEventListener('input', () => updateRangeLabels('downloadMinDs', 'downloadMaxDs', 'downloadMinDsValue', 'downloadMaxDsValue')));
+['analyzeMinDs', 'analyzeMaxDs'].forEach(id => $(id).addEventListener('input', () => updateRangeLabels('analyzeMinDs', 'analyzeMaxDs', 'analyzeMinDsValue', 'analyzeMaxDsValue')));
+autoDownloadModal.addEventListener('click', event => { if (event.target === autoDownloadModal) closeAutoModal(autoDownloadModal); });
+autoAnalyzeModal.addEventListener('click', event => { if (event.target === autoAnalyzeModal) closeAutoModal(autoAnalyzeModal); });
+autoTagResultsBox.addEventListener('click', event => {
+  const target = event.target.closest('.chart-result');
+  if (target && target.dataset.key) loadAutoTagDetail(target.dataset.key);
 });
 jsonFileInput.addEventListener('change', () => {
   const file = jsonFileInput.files && jsonFileInput.files[0];

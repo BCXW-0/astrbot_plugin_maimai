@@ -10,6 +10,7 @@ from aiohttp import web
 
 from .. import Root, log, webui_config_overrides_json
 from .arcade_credential_manager import get_arcade_credential_manager
+from .chart_tags.auto_tagger import AutoTagJob
 from .chart_tags import ChartTagUpdateJob, generate_chart_tags_file
 from .chart_tags.constants import ALLOWED_TAGS, TAG_CATEGORIES
 from .chart_tags.rule_tags import filter_allowed_tags
@@ -49,6 +50,7 @@ class RoastPersonaWebUI:
         self.start_task: asyncio.Task | None = None
         self.assets_dir = Root / "static" / "plugin_webui"
         self.chart_tag_job = ChartTagUpdateJob(context=context, config=self.config)
+        self.auto_tag_job = AutoTagJob()
 
     async def start(self) -> None:
         if self.runner:
@@ -67,6 +69,12 @@ class RoastPersonaWebUI:
         app.router.add_get("/api/chart_tags/search", self.chart_tags_search)
         app.router.add_get("/api/chart_tags/{key}", self.chart_tags_get)
         app.router.add_post("/api/chart_tags/{key}", self.chart_tags_save)
+        app.router.add_get("/api/auto_tags/status", self.auto_tags_status)
+        app.router.add_post("/api/auto_tags/download", self.auto_tags_download)
+        app.router.add_post("/api/auto_tags/analyze", self.auto_tags_analyze)
+        app.router.add_post("/api/auto_tags/stop", self.auto_tags_stop)
+        app.router.add_get("/api/auto_tags/search", self.auto_tags_search)
+        app.router.add_get("/api/auto_tags/{key}", self.auto_tags_get)
         app.router.add_get("/api/personas", self.list_personas)
         app.router.add_post("/api/persona", self.save_persona)
         app.router.add_post("/api/import_json", self.import_json)
@@ -78,6 +86,7 @@ class RoastPersonaWebUI:
         await self.site.start()
 
     async def stop(self) -> None:
+        await asyncio.to_thread(self.auto_tag_job.shutdown)
         await self.chart_tag_job.shutdown()
         if self.start_task and not self.start_task.done():
             self.start_task.cancel()
@@ -339,6 +348,79 @@ button:hover {{ background: #2447c4; }}
             return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
         return web.json_response(await self.chart_tag_job.stop())
 
+    async def auto_tags_status(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        return web.json_response(await asyncio.to_thread(self.auto_tag_job.status))
+
+    async def auto_tags_download(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        data = await request.json() if request.can_read_body else {}
+        if not isinstance(data, dict):
+            return web.json_response({"ok": False, "message": "请求数据格式不正确"}, status=400)
+        try:
+            result = await asyncio.to_thread(
+                self.auto_tag_job.start_download,
+                min_ds=data.get("min_ds", 12.6),
+                max_ds=data.get("max_ds", 15.0),
+                mode=data.get("mode", "all"),
+                query=data.get("query", ""),
+            )
+        except ValueError as exc:
+            return web.json_response({"ok": False, "message": str(exc)}, status=400)
+        return web.json_response(result)
+
+    async def auto_tags_analyze(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        data = await request.json() if request.can_read_body else {}
+        if not isinstance(data, dict):
+            return web.json_response({"ok": False, "message": "请求数据格式不正确"}, status=400)
+        try:
+            result = await asyncio.to_thread(
+                self.auto_tag_job.start_analysis,
+                min_ds=data.get("min_ds", 12.6),
+                max_ds=data.get("max_ds", 15.0),
+                force=data.get("force", False),
+            )
+        except ValueError as exc:
+            return web.json_response({"ok": False, "message": str(exc)}, status=400)
+        return web.json_response(result)
+
+    async def auto_tags_stop(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        return web.json_response(await asyncio.to_thread(self.auto_tag_job.stop))
+
+    async def auto_tags_search(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        query = str(request.query.get("q", "") or "").strip()
+        limit, error = self._parse_int_param(request.query.get("limit"), default=80)
+        if error:
+            return web.json_response({"ok": False, "message": f"limit {error}"}, status=400)
+        try:
+            items = await asyncio.to_thread(
+                self.auto_tag_job.search,
+                query,
+                min_ds=request.query.get("min_ds", 10.0),
+                max_ds=request.query.get("max_ds", 15.0),
+                limit=limit,
+            )
+        except ValueError as exc:
+            return web.json_response({"ok": False, "message": str(exc)}, status=400)
+        return web.json_response({"ok": True, "items": items, "allowed_tags": ALLOWED_TAGS})
+
+    async def auto_tags_get(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        key = request.match_info["key"]
+        item = await asyncio.to_thread(self.auto_tag_job.detail, key)
+        if item is None:
+            return web.json_response({"ok": False, "message": "谱面不存在"}, status=404)
+        return web.json_response({"ok": True, "item": item, "allowed_tags": ALLOWED_TAGS})
+
     def _search_chart_tag_items(self, query: str, limit: int) -> list[dict[str, Any]]:
         data = read_chart_tags()
         charts = data.get("charts", {}) if isinstance(data, dict) else {}
@@ -370,13 +452,17 @@ button:hover {{ background: #2447c4; }}
             return None
         chart["manual_tags"] = manual_tags
         from .chart_tags.rule_tags import select_final_tags, tag_weight
+        model_tags = filter_allowed_tags(chart.get("model_tags", []))
         llm_tags = filter_allowed_tags(chart.get("llm_tags", []))
+        automated_tags = model_tags or llm_tags
         base_scores = chart.get("tag_scores") if isinstance(chart.get("tag_scores"), dict) else {}
-        score_map = {tag: float(base_scores.get(tag, tag_weight(tag))) for tag in [*llm_tags, *manual_tags]}
+        score_map = {tag: float(base_scores.get(tag, tag_weight(tag))) for tag in [*automated_tags, *manual_tags]}
         for tag in manual_tags:
             score_map[tag] = max(score_map.get(tag, 0.0), tag_weight(tag) * 1.25)
         final_tags, tag_scores = select_final_tags(score_map, manual_tags)
-        chart["llm_tags"] = llm_tags
+        if "model_tags" in chart:
+            chart["model_tags"] = automated_tags
+        chart["llm_tags"] = llm_tags or automated_tags
         chart["final_tags"] = final_tags
         chart["tags"] = final_tags
         chart["tag_scores"] = tag_scores
@@ -384,6 +470,8 @@ button:hover {{ background: #2447c4; }}
         if final_tags:
             chart["tag_status"] = "done"
             chart["tag_error"] = ""
+        elif chart.get("analysis_status") == "completed":
+            chart["tag_status"] = "no_evidence"
         elif chart.get("tag_status") == "done":
             chart["tag_status"] = ""
         chart["updated_at"] = self._now_text()
@@ -395,8 +483,10 @@ button:hover {{ background: #2447c4; }}
 
     def _chart_tag_summary(self, key: str, chart: dict[str, Any]) -> dict[str, Any]:
         manual_tags = filter_allowed_tags(chart.get("manual_tags", []))
+        model_tags = filter_allowed_tags(chart.get("model_tags", []))
         llm_tags = filter_allowed_tags(chart.get("llm_tags", []))
-        final_tags = filter_allowed_tags(chart.get("final_tags") or chart.get("tags") or [*llm_tags, *manual_tags])
+        automated_tags = model_tags or llm_tags
+        final_tags = filter_allowed_tags(chart.get("final_tags") or chart.get("tags") or [*automated_tags, *manual_tags])
         return {
             "key": key,
             "song_id": chart.get("song_id", ""),
@@ -405,11 +495,15 @@ button:hover {{ background: #2447c4; }}
             "level": chart.get("level", ""),
             "type": chart.get("type", ""),
             "manual_tags": manual_tags,
-            "llm_tags": llm_tags,
+            "model_tags": automated_tags,
+            "llm_tags": automated_tags,
             "final_tags": final_tags,
             "tag_scores": chart.get("tag_scores") if isinstance(chart.get("tag_scores"), dict) else {},
             "tag_status": chart.get("tag_status", ""),
             "tag_error": chart.get("tag_error", ""),
+            "analysis_status": chart.get("analysis_status", ""),
+            "analysis_engine": chart.get("analysis_engine", ""),
+            "mapping": chart.get("mapping", {}),
         }
 
     def _chart_tag_detail(self, key: str, chart: dict[str, Any]) -> dict[str, Any]:
@@ -424,6 +518,15 @@ button:hover {{ background: #2447c4; }}
             "charter": chart.get("charter", ""),
             "notes": chart.get("notes", {}),
             "evidence": chart.get("evidence", []),
+            "model_scores": chart.get("model_scores", {}),
+            "model_probabilities": chart.get("model_probabilities", {}),
+            "model_features": chart.get("model_features", {}),
+            "model_windows": chart.get("model_windows", []),
+            "tag_positions": chart.get("tag_positions", {}),
+            "source_file": chart.get("source_file", ""),
+            "source_path": chart.get("source_path", ""),
+            "source_sha256": chart.get("source_sha256", ""),
+            "mapping": chart.get("mapping", {}),
             "updated_at": chart.get("updated_at", ""),
         })
         return item

@@ -235,3 +235,4 @@ RELOAD_COMMAND_TEST_REPORT.md
 # Local maidata cache
 static/maidata_cache/
 static/chart_tag_progress.json
+static/auto_tag_progress.json

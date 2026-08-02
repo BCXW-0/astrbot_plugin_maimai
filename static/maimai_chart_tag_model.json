@@ -128,7 +128,7 @@
   "best_valid_loss": 0.27187529,
   "loss_file": "static/chart_tag_loss.json",
   "model_file": "static/maimai_chart_tag_model.npz",
-  "formal_pipeline_enabled": false,
-  "review_status": "pending",
+  "formal_pipeline_enabled": true,
+  "review_status": "available_for_webui_auto_analysis",
   "created_at": "2026-08-02T18:55:57+08:00"
 }
