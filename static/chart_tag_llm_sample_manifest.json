@@ -1,0 +1,1013 @@
+{
+  "manifest_version": 1,
+  "created_at": "2026-08-02T13:56:29+08:00",
+  "directory": "static/Levels",
+  "resolved_directory": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels",
+  "min_ds": 12.6,
+  "sample_size_requested": 100,
+  "sample_size_selected": 100,
+  "random_seed": 2026080201,
+  "force": false,
+  "charts": [
+    {
+      "key": "11282:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11282_もぺもぺ.txt",
+      "file": "11282_もぺもぺ.txt",
+      "title": "もぺもぺ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 13.9,
+      "bpm": 100.0
+    },
+    {
+      "key": "736:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/736_World Vanquisher.txt",
+      "file": "736_World Vanquisher.txt",
+      "title": "World Vanquisher",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.3,
+      "bpm": 170.0
+    },
+    {
+      "key": "11479:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11479_Hainuwele.txt",
+      "file": "11479_Hainuwele.txt",
+      "title": "Hainuwele",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.3,
+      "bpm": 175.0
+    },
+    {
+      "key": "235:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/235_火炎地獄.txt",
+      "file": "235_火炎地獄.txt",
+      "title": "火炎地獄",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.6,
+      "bpm": 216.0
+    },
+    {
+      "key": "47:4",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/47_源平大戦絵巻テーマソング.txt",
+      "file": "47_源平大戦絵巻テーマソング.txt",
+      "title": "源平大戦絵巻テーマソング",
+      "level_index": 4,
+      "diff_id": 6,
+      "ds": 14.6,
+      "bpm": 190.0
+    },
+    {
+      "key": "390:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/390_Got more raves？.txt",
+      "file": "390_Got more raves？.txt",
+      "title": "Got more raves？",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.1,
+      "bpm": 266.0
+    },
+    {
+      "key": "11014:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11014_♡マイマイマイラブ♡.txt",
+      "file": "11014_♡マイマイマイラブ♡.txt",
+      "title": "♡マイマイマイラブ♡",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 131.0
+    },
+    {
+      "key": "11956:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11956_Break The Speakers.txt",
+      "file": "11956_Break The Speakers.txt",
+      "title": "Break The Speakers",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.7,
+      "bpm": 185.0
+    },
+    {
+      "key": "10185:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/10185_＊ハロー、プラネット。.txt",
+      "file": "10185_＊ハロー、プラネット。.txt",
+      "title": "＊ハロー、プラネット。",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 150.0
+    },
+    {
+      "key": "655:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/655_フラジール.txt",
+      "file": "655_フラジール.txt",
+      "title": "フラジール",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 127.0
+    },
+    {
+      "key": "10665:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/10665_チルノのパーフェクトさんすう教室　⑨周年バージョン.txt",
+      "file": "10665_チルノのパーフェクトさんすう教室　⑨周年バージョン.txt",
+      "title": "チルノのパーフェクトさんすう教室　⑨周年バージョン",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 175.0
+    },
+    {
+      "key": "699:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/699_天狗の落とし文 feat. ｙｔｒ.txt",
+      "file": "699_天狗の落とし文 feat. ｙｔｒ.txt",
+      "title": "天狗の落とし文 feat. ｙｔｒ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 160.0
+    },
+    {
+      "key": "11596:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11596_Vallista.txt",
+      "file": "11596_Vallista.txt",
+      "title": "Vallista",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.0,
+      "bpm": 180.0
+    },
+    {
+      "key": "509:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/509_Just Be Friends.txt",
+      "file": "509_Just Be Friends.txt",
+      "title": "Just Be Friends",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 128.0
+    },
+    {
+      "key": "11651:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11651_あなたは世界の終わりにずんだを食べるのだ.txt",
+      "file": "11651_あなたは世界の終わりにずんだを食べるのだ.txt",
+      "title": "あなたは世界の終わりにずんだを食べるのだ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 140.0
+    },
+    {
+      "key": "11471:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11471_蜘蛛の糸.txt",
+      "file": "11471_蜘蛛の糸.txt",
+      "title": "蜘蛛の糸",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.2,
+      "bpm": 180.0
+    },
+    {
+      "key": "11510:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11510_キュートなカノジョ.txt",
+      "file": "11510_キュートなカノジョ.txt",
+      "title": "キュートなカノジョ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 160.0
+    },
+    {
+      "key": "11624:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11624_SQUAD-Phvntom-.txt",
+      "file": "11624_SQUAD-Phvntom-.txt",
+      "title": "SQUAD-Phvntom-",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.3,
+      "bpm": 200.0
+    },
+    {
+      "key": "11889:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11889_Get U ♭ack.txt",
+      "file": "11889_Get U ♭ack.txt",
+      "title": "Get U ♭ack",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.9,
+      "bpm": 205.0
+    },
+    {
+      "key": "774:4",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/774_甲賀忍法帖.txt",
+      "file": "774_甲賀忍法帖.txt",
+      "title": "甲賀忍法帖",
+      "level_index": 4,
+      "diff_id": 6,
+      "ds": 12.7,
+      "bpm": 171.5
+    },
+    {
+      "key": "11052:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11052_グリーンライツ・セレナーデ.txt",
+      "file": "11052_グリーンライツ・セレナーデ.txt",
+      "title": "グリーンライツ・セレナーデ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 200.0
+    },
+    {
+      "key": "11100:4",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11100_シエルブルーマルシェ.txt",
+      "file": "11100_シエルブルーマルシェ.txt",
+      "title": "シエルブルーマルシェ",
+      "level_index": 4,
+      "diff_id": 6,
+      "ds": 13.7,
+      "bpm": 180.0
+    },
+    {
+      "key": "11809:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11809_Åntinomiε.txt",
+      "file": "11809_Åntinomiε.txt",
+      "title": "Åntinomiε",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.6,
+      "bpm": 242.0
+    },
+    {
+      "key": "212:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/212_神室雪月花.txt",
+      "file": "212_神室雪月花.txt",
+      "title": "神室雪月花",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 86.0
+    },
+    {
+      "key": "564:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/564_ENJOY POLIS.txt",
+      "file": "564_ENJOY POLIS.txt",
+      "title": "ENJOY POLIS",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 220.0
+    },
+    {
+      "key": "11448:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11448_ただ選択があった.txt",
+      "file": "11448_ただ選択があった.txt",
+      "title": "ただ選択があった",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 140.0
+    },
+    {
+      "key": "11746:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11746_Divide et impera!.txt",
+      "file": "11746_Divide et impera!.txt",
+      "title": "Divide et impera!",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.8,
+      "bpm": 166.0
+    },
+    {
+      "key": "240:4",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/240_Beat of getting entangled.txt",
+      "file": "240_Beat of getting entangled.txt",
+      "title": "Beat of getting entangled",
+      "level_index": 4,
+      "diff_id": 6,
+      "ds": 14.5,
+      "bpm": 140.0
+    },
+    {
+      "key": "11337:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11337_セカイはまだ始まってすらいない.txt",
+      "file": "11337_セカイはまだ始まってすらいない.txt",
+      "title": "セカイはまだ始まってすらいない",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 138.0
+    },
+    {
+      "key": "11472:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11472_Don't Fight The Music.txt",
+      "file": "11472_Don't Fight The Music.txt",
+      "title": "Don't Fight The Music",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.8,
+      "bpm": 200.0
+    },
+    {
+      "key": "11295:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11295_脳天直撃.txt",
+      "file": "11295_脳天直撃.txt",
+      "title": "脳天直撃",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.6,
+      "bpm": 145.0
+    },
+    {
+      "key": "348:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/348_Axeria.txt",
+      "file": "348_Axeria.txt",
+      "title": "Axeria",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.9,
+      "bpm": 193.0
+    },
+    {
+      "key": "11100:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11100_シエルブルーマルシェ.txt",
+      "file": "11100_シエルブルーマルシェ.txt",
+      "title": "シエルブルーマルシェ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 180.0
+    },
+    {
+      "key": "567:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/567_HERA.txt",
+      "file": "567_HERA.txt",
+      "title": "HERA",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.3,
+      "bpm": 185.0
+    },
+    {
+      "key": "11389:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11389_Sage.txt",
+      "file": "11389_Sage.txt",
+      "title": "Sage",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.5,
+      "bpm": 145.0
+    },
+    {
+      "key": "11248:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11248_MEGATON BLAST.txt",
+      "file": "11248_MEGATON BLAST.txt",
+      "title": "MEGATON BLAST",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.3,
+      "bpm": 194.0
+    },
+    {
+      "key": "30:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/30_ネコ日和。.txt",
+      "file": "30_ネコ日和。.txt",
+      "title": "ネコ日和。",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 171.0
+    },
+    {
+      "key": "11142:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11142_NULCTRL.txt",
+      "file": "11142_NULCTRL.txt",
+      "title": "NULCTRL",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 13.9,
+      "bpm": 100.0
+    },
+    {
+      "key": "11413:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11413_Armageddon.txt",
+      "file": "11413_Armageddon.txt",
+      "title": "Armageddon",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 13.9,
+      "bpm": 210.0
+    },
+    {
+      "key": "11974:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11974_色彩過剰のダイアリーミュージック.txt",
+      "file": "11974_色彩過剰のダイアリーミュージック.txt",
+      "title": "色彩過剰のダイアリーミュージック",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.1,
+      "bpm": 181.0
+    },
+    {
+      "key": "11015:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11015_一か罰.txt",
+      "file": "11015_一か罰.txt",
+      "title": "一か罰",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 196.0
+    },
+    {
+      "key": "11526:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11526_トノサマビーム.txt",
+      "file": "11526_トノサマビーム.txt",
+      "title": "トノサマビーム",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 170.0
+    },
+    {
+      "key": "825:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/825_雷切-RAIKIRI-.txt",
+      "file": "825_雷切-RAIKIRI-.txt",
+      "title": "雷切-RAIKIRI-",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.8,
+      "bpm": 165.0
+    },
+    {
+      "key": "11482:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11482_ジレンマ.txt",
+      "file": "11482_ジレンマ.txt",
+      "title": "ジレンマ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 188.0
+    },
+    {
+      "key": "11325:4",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11325_テレキャスタービーボーイ.txt",
+      "file": "11325_テレキャスタービーボーイ.txt",
+      "title": "テレキャスタービーボーイ",
+      "level_index": 4,
+      "diff_id": 6,
+      "ds": 12.8,
+      "bpm": 182.0
+    },
+    {
+      "key": "11927:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11927_Worlders.txt",
+      "file": "11927_Worlders.txt",
+      "title": "Worlders",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 137.5
+    },
+    {
+      "key": "754:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/754_Arrival of Tears.txt",
+      "file": "754_Arrival of Tears.txt",
+      "title": "Arrival of Tears",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 200.0
+    },
+    {
+      "key": "11572:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11572_tape_stop_night.txt",
+      "file": "11572_tape_stop_night.txt",
+      "title": "tape/stop/night",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 115.0
+    },
+    {
+      "key": "11544:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11544_VERTeX (rintaro soma deconstructed remix).txt",
+      "file": "11544_VERTeX (rintaro soma deconstructed remix).txt",
+      "title": "VERTeX (rintaro soma deconstructed remix)",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.6,
+      "bpm": 158.0
+    },
+    {
+      "key": "339:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/339_DRAGONLADY.txt",
+      "file": "339_DRAGONLADY.txt",
+      "title": "DRAGONLADY",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.8,
+      "bpm": 150.0
+    },
+    {
+      "key": "11596:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11596_Vallista.txt",
+      "file": "11596_Vallista.txt",
+      "title": "Vallista",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.6,
+      "bpm": 180.0
+    },
+    {
+      "key": "820:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/820_FFT.txt",
+      "file": "820_FFT.txt",
+      "title": "FFT",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.0,
+      "bpm": 180.0
+    },
+    {
+      "key": "11702:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11702_New York Back Raise.txt",
+      "file": "11702_New York Back Raise.txt",
+      "title": "New York Back Raise",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.7,
+      "bpm": 240.0
+    },
+    {
+      "key": "11228:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11228_星めぐり、果ての君へ。.txt",
+      "file": "11228_星めぐり、果ての君へ。.txt",
+      "title": "星めぐり、果ての君へ。",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 175.0
+    },
+    {
+      "key": "796:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/796_極圏.txt",
+      "file": "796_極圏.txt",
+      "title": "極圏",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.9,
+      "bpm": 207.0
+    },
+    {
+      "key": "11426:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11426_Mjölnir.txt",
+      "file": "11426_Mjölnir.txt",
+      "title": "Mjölnir",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.7,
+      "bpm": 222.0
+    },
+    {
+      "key": "11660:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11660_さよならプリンセス.txt",
+      "file": "11660_さよならプリンセス.txt",
+      "title": "さよならプリンセス",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 195.0
+    },
+    {
+      "key": "145:4",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/145_Starlight Disco.txt",
+      "file": "145_Starlight Disco.txt",
+      "title": "Starlight Disco",
+      "level_index": 4,
+      "diff_id": 6,
+      "ds": 12.7,
+      "bpm": 128.0
+    },
+    {
+      "key": "11549:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11549_Trrricksters!!.txt",
+      "file": "11549_Trrricksters!!.txt",
+      "title": "Trrricksters!!",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.3,
+      "bpm": 155.0
+    },
+    {
+      "key": "708:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/708_バレリーコ.txt",
+      "file": "708_バレリーコ.txt",
+      "title": "バレリーコ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 150.0
+    },
+    {
+      "key": "10536:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/10536_月に叢雲華に風.txt",
+      "file": "10536_月に叢雲華に風.txt",
+      "title": "月に叢雲華に風",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 160.0
+    },
+    {
+      "key": "745:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/745_keep hopping.txt",
+      "file": "745_keep hopping.txt",
+      "title": "keep hopping",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.6,
+      "bpm": 155.0
+    },
+    {
+      "key": "11643:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11643_天使光輪.txt",
+      "file": "11643_天使光輪.txt",
+      "title": "天使光輪",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.6,
+      "bpm": 203.0
+    },
+    {
+      "key": "11920:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11920_Hurtling Boys.txt",
+      "file": "11920_Hurtling Boys.txt",
+      "title": "Hurtling Boys",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.8,
+      "bpm": 195.0
+    },
+    {
+      "key": "11439:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11439_ジャンキーナイトタウンオーケストラ.txt",
+      "file": "11439_ジャンキーナイトタウンオーケストラ.txt",
+      "title": "ジャンキーナイトタウンオーケストラ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 145.0
+    },
+    {
+      "key": "421:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/421_Aiolos.txt",
+      "file": "421_Aiolos.txt",
+      "title": "Aiolos",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.3,
+      "bpm": 205.0
+    },
+    {
+      "key": "672:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/672_MilK.txt",
+      "file": "672_MilK.txt",
+      "title": "MilK",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 13.8,
+      "bpm": 150.0
+    },
+    {
+      "key": "11735:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11735_ザムザ.txt",
+      "file": "11735_ザムザ.txt",
+      "title": "ザムザ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 121.0
+    },
+    {
+      "key": "11367:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11367_veil.txt",
+      "file": "11367_veil.txt",
+      "title": "veil",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 150.0
+    },
+    {
+      "key": "11406:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11406_愛のシュプリーム！.txt",
+      "file": "11406_愛のシュプリーム！.txt",
+      "title": "愛のシュプリーム！",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 135.0
+    },
+    {
+      "key": "806:4",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/806_ナイトメア☆パーティーナイト.txt",
+      "file": "806_ナイトメア☆パーティーナイト.txt",
+      "title": "ナイトメア☆パーティーナイト",
+      "level_index": 4,
+      "diff_id": 6,
+      "ds": 12.8,
+      "bpm": 175.0
+    },
+    {
+      "key": "11517:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11517_最強STRONGER.txt",
+      "file": "11517_最強STRONGER.txt",
+      "title": "最強STRONGER",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.5,
+      "bpm": 102.5
+    },
+    {
+      "key": "812:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/812_Alea jacta est!.txt",
+      "file": "812_Alea jacta est!.txt",
+      "title": "Alea jacta est!",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.4,
+      "bpm": 162.0
+    },
+    {
+      "key": "11810:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11810_ATLAS RUSH.txt",
+      "file": "11810_ATLAS RUSH.txt",
+      "title": "ATLAS RUSH",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.7,
+      "bpm": 156.0
+    },
+    {
+      "key": "11632:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11632_Play merrily NEO.txt",
+      "file": "11632_Play merrily NEO.txt",
+      "title": "Play merrily NEO",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 180.0
+    },
+    {
+      "key": "84:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/84_Catch The Future.txt",
+      "file": "84_Catch The Future.txt",
+      "title": "Catch The Future",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 106.0
+    },
+    {
+      "key": "11375:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11375_ミルキースター・シューティングスター.txt",
+      "file": "11375_ミルキースター・シューティングスター.txt",
+      "title": "ミルキースター・シューティングスター",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 184.0
+    },
+    {
+      "key": "493:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/493_Imitation_Loud Lounge.txt",
+      "file": "493_Imitation_Loud Lounge.txt",
+      "title": "Imitation:Loud Lounge",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 13.4,
+      "bpm": 145.0
+    },
+    {
+      "key": "11118:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11118_いつかいい感じにアレしよう.txt",
+      "file": "11118_いつかいい感じにアレしよう.txt",
+      "title": "いつかいい感じにアレしよう",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 130.0
+    },
+    {
+      "key": "237:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/237_Pixel Voyage.txt",
+      "file": "237_Pixel Voyage.txt",
+      "title": "Pixel Voyage",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 170.0
+    },
+    {
+      "key": "11548:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11548_超熊猫的周遊記（ワンダーパンダートラベラー）.txt",
+      "file": "11548_超熊猫的周遊記（ワンダーパンダートラベラー）.txt",
+      "title": "超熊猫的周遊記（ワンダーパンダートラベラー）",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.7,
+      "bpm": 131.0
+    },
+    {
+      "key": "11502:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11502_エナドリおいしいソング.txt",
+      "file": "11502_エナドリおいしいソング.txt",
+      "title": "エナドリおいしいソング",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 13.9,
+      "bpm": 142.5
+    },
+    {
+      "key": "11602:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11602_絶対敵対メチャキライヤー.txt",
+      "file": "11602_絶対敵対メチャキライヤー.txt",
+      "title": "絶対敵対メチャキライヤー",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 190.0
+    },
+    {
+      "key": "10420:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/10420_Change Our MIRAI！.txt",
+      "file": "10420_Change Our MIRAI！.txt",
+      "title": "Change Our MIRAI！",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 256.0
+    },
+    {
+      "key": "844:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/844_End Time.txt",
+      "file": "844_End Time.txt",
+      "title": "End Time",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.7,
+      "bpm": 160.0
+    },
+    {
+      "key": "269:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/269_裏表ラバーズ.txt",
+      "file": "269_裏表ラバーズ.txt",
+      "title": "裏表ラバーズ",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.6,
+      "bpm": 159.0
+    },
+    {
+      "key": "449:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/449_すろぉもぉしょん.txt",
+      "file": "449_すろぉもぉしょん.txt",
+      "title": "すろぉもぉしょん",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 160.0
+    },
+    {
+      "key": "641:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/641_Calamity Fortune.txt",
+      "file": "641_Calamity Fortune.txt",
+      "title": "Calamity Fortune",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.9,
+      "bpm": 200.0
+    },
+    {
+      "key": "669:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/669_あ・え・い・う・え・お・あお!!.txt",
+      "file": "669_あ・え・い・う・え・お・あお!!.txt",
+      "title": "あ・え・い・う・え・お・あお!!",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 145.0
+    },
+    {
+      "key": "772:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/772_FREEDOM DiVE (tpz Overcute Remix).txt",
+      "file": "772_FREEDOM DiVE (tpz Overcute Remix).txt",
+      "title": "FREEDOM DiVE (tpz Overcute Remix)",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 14.1,
+      "bpm": 234.55
+    },
+    {
+      "key": "11565:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11565_Let you DIVE!.txt",
+      "file": "11565_Let you DIVE!.txt",
+      "title": "Let you DIVE!",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 185.0
+    },
+    {
+      "key": "11694:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11694_強風オールバック.txt",
+      "file": "11694_強風オールバック.txt",
+      "title": "強風オールバック",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 135.0
+    },
+    {
+      "key": "229:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/229_ぐるぐるWASH！コインランドリー・ディスコ.txt",
+      "file": "229_ぐるぐるWASH！コインランドリー・ディスコ.txt",
+      "title": "ぐるぐるWASH！コインランドリー・ディスコ",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 132.0
+    },
+    {
+      "key": "637:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/637_ないせんのうた.txt",
+      "file": "637_ないせんのうた.txt",
+      "title": "ないせんのうた",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.7,
+      "bpm": 184.0
+    },
+    {
+      "key": "736:2",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/736_World Vanquisher.txt",
+      "file": "736_World Vanquisher.txt",
+      "title": "World Vanquisher",
+      "level_index": 2,
+      "diff_id": 4,
+      "ds": 12.8,
+      "bpm": 170.0
+    },
+    {
+      "key": "11108:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11108_UTAKATA.txt",
+      "file": "11108_UTAKATA.txt",
+      "title": "UTAKATA",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 185.0
+    },
+    {
+      "key": "523:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/523_しんでしまうとはなさけない！.txt",
+      "file": "523_しんでしまうとはなさけない！.txt",
+      "title": "しんでしまうとはなさけない！",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.9,
+      "bpm": 174.0
+    },
+    {
+      "key": "11614:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11614_Cry Cry Cry.txt",
+      "file": "11614_Cry Cry Cry.txt",
+      "title": "Cry Cry Cry",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 123.0
+    },
+    {
+      "key": "11636:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11636_さくゆいたいそう.txt",
+      "file": "11636_さくゆいたいそう.txt",
+      "title": "さくゆいたいそう",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.6,
+      "bpm": 160.0
+    },
+    {
+      "key": "11138:3",
+      "path": "/root/data/plugins/astrbot_plugin_maimaidx/static/Levels/11138_Drive Your Fire.txt",
+      "file": "11138_Drive Your Fire.txt",
+      "title": "Drive Your Fire",
+      "level_index": 3,
+      "diff_id": 5,
+      "ds": 12.8,
+      "bpm": 164.0
+    }
+  ]
+}

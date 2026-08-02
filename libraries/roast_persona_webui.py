@@ -12,6 +12,7 @@ from .. import Root, log, webui_config_overrides_json
 from .arcade_credential_manager import get_arcade_credential_manager
 from .chart_tags import ChartTagUpdateJob, generate_chart_tags_file
 from .chart_tags.constants import ALLOWED_TAGS, TAG_CATEGORIES
+from .chart_tags.local_llm_analysis import LocalLLMAnalysisJob
 from .chart_tags.rule_tags import filter_allowed_tags
 from .chart_tags.storage import read_chart_tags, write_json_atomic, CHART_TAGS_FILE
 from .maimaidx_api_data import maiApi
@@ -26,6 +27,9 @@ class RoastPersonaWebUI:
         "enable_reply": {"label": "引用回复", "type": "bool"},
         "maimaidxtoken": {"label": "水鱼 Developer-Token", "type": "string", "secret": True},
         "roast_b50_provider_id": {"label": "锐评B50专用模型", "type": "string"},
+        "chart_tag_llm_provider_id": {"label": "谱面分析专用模型", "type": "string"},
+        "chart_tag_llm_timeout_seconds": {"label": "谱面分析单次超时", "type": "int", "min": 5},
+        "chart_tag_llm_concurrency": {"label": "谱面分析并发数", "type": "int", "min": 1},
         "roast_persona_prompt_sample_limit": {"label": "锐评人格注入样本上限", "type": "int", "min": 1},
         "roast_persona_webui_enabled": {"label": "插件管理 WebUI", "type": "bool"},
         "sgid_max_age_seconds": {"label": "SGID 有效窗口", "type": "int", "min": 30},
@@ -49,6 +53,7 @@ class RoastPersonaWebUI:
         self.start_task: asyncio.Task | None = None
         self.assets_dir = Root / "static" / "plugin_webui"
         self.chart_tag_job = ChartTagUpdateJob(context=context, config=self.config)
+        self.levels_llm_job = LocalLLMAnalysisJob(context=context, config=self.config)
 
     async def start(self) -> None:
         if self.runner:
@@ -64,6 +69,9 @@ class RoastPersonaWebUI:
         app.router.add_post("/api/chart_tags/generate", self.chart_tags_generate)
         app.router.add_post("/api/chart_tags/start", self.chart_tags_start)
         app.router.add_post("/api/chart_tags/stop", self.chart_tags_stop)
+        app.router.add_get("/api/levels_llm/status", self.levels_llm_status)
+        app.router.add_post("/api/levels_llm/start", self.levels_llm_start)
+        app.router.add_post("/api/levels_llm/stop", self.levels_llm_stop)
         app.router.add_get("/api/chart_tags/search", self.chart_tags_search)
         app.router.add_get("/api/chart_tags/{key}", self.chart_tags_get)
         app.router.add_post("/api/chart_tags/{key}", self.chart_tags_save)
@@ -79,6 +87,7 @@ class RoastPersonaWebUI:
 
     async def stop(self) -> None:
         await self.chart_tag_job.shutdown()
+        await self.levels_llm_job.shutdown()
         if self.start_task and not self.start_task.done():
             self.start_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -339,6 +348,80 @@ button:hover {{ background: #2447c4; }}
             return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
         return web.json_response(await self.chart_tag_job.stop())
 
+    async def levels_llm_status(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        return web.json_response(self.levels_llm_job.status())
+
+    async def levels_llm_start(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        try:
+            data = await request.json() if request.can_read_body else {}
+        except (json.JSONDecodeError, ValueError):
+            return web.json_response({"ok": False, "message": "请求体必须是 JSON"}, status=400)
+        if not isinstance(data, dict):
+            data = {}
+
+        directory = str(data.get("directory", "static/Levels") or "static/Levels").strip()
+        try:
+            min_ds = float(data.get("min_ds", 12.6) or 12.6)
+        except (TypeError, ValueError):
+            return web.json_response({"ok": False, "message": "min_ds 必须是数字"}, status=400)
+        if min_ds < 12.6:
+            return web.json_response({"ok": False, "message": "最低定数不能低于 12.6"}, status=400)
+
+        limit, error = self._parse_int_param(data.get("limit"), default=None)
+        if error:
+            return web.json_response({"ok": False, "message": f"limit {error}"}, status=400)
+        if limit is not None and limit < 1:
+            return web.json_response({"ok": False, "message": "limit 必须大于 0"}, status=400)
+        if limit is not None:
+            limit = min(limit, 10000)
+        chart_limit, error = self._parse_int_param(data.get("chart_limit"), default=None)
+        if error:
+            return web.json_response({"ok": False, "message": f"chart_limit {error}"}, status=400)
+        if chart_limit is not None and chart_limit < 1:
+            return web.json_response({"ok": False, "message": "chart_limit 必须大于 0"}, status=400)
+        if chart_limit is not None:
+            chart_limit = min(chart_limit, 10000)
+        sample_size, error = self._parse_int_param(data.get("sample_size"), default=None)
+        if error:
+            return web.json_response({"ok": False, "message": f"sample_size {error}"}, status=400)
+        if sample_size is not None and sample_size < 1:
+            return web.json_response({"ok": False, "message": "sample_size must be positive"}, status=400)
+        if sample_size is not None:
+            sample_size = min(sample_size, 10000)
+        random_seed, error = self._parse_int_param(data.get("random_seed"), default=None)
+        if error:
+            return web.json_response({"ok": False, "message": f"random_seed {error}"}, status=400)
+        target_tag = str(data.get("target_tag", "") or "").strip() or None
+        if target_tag not in {None, "撞尾"}:
+            return web.json_response({"ok": False, "message": "target_tag 只支持 撞尾"}, status=400)
+        force = bool(data.get("force", False))
+        try:
+            result = await self.levels_llm_job.start(
+                directory=directory,
+                min_ds=min_ds,
+                limit=limit,
+                chart_limit=chart_limit,
+                sample_size=sample_size,
+                random_seed=random_seed,
+                target_tag=target_tag,
+                force=force,
+            )
+        except (ValueError, FileNotFoundError) as exc:
+            return web.json_response({"ok": False, "message": str(exc)}, status=400)
+        except Exception as exc:
+            log.error(f"启动本地谱面模型分析失败: {type(exc).__name__} - {exc}")
+            return web.json_response({"ok": False, "message": "启动本地谱面模型分析失败，请查看插件日志"}, status=500)
+        return web.json_response(result)
+
+    async def levels_llm_stop(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        return web.json_response(await self.levels_llm_job.stop())
+
     def _search_chart_tag_items(self, query: str, limit: int) -> list[dict[str, Any]]:
         data = read_chart_tags()
         charts = data.get("charts", {}) if isinstance(data, dict) else {}
@@ -410,6 +493,10 @@ button:hover {{ background: #2447c4; }}
             "tag_scores": chart.get("tag_scores") if isinstance(chart.get("tag_scores"), dict) else {},
             "tag_status": chart.get("tag_status", ""),
             "tag_error": chart.get("tag_error", ""),
+            "local_tags": filter_allowed_tags(chart.get("local_tags", [])),
+            "local_source": chart.get("local_source", ""),
+            "local_source_path": chart.get("local_source_path", ""),
+            "local_confidence": chart.get("local_confidence"),
         }
 
     def _chart_tag_detail(self, key: str, chart: dict[str, Any]) -> dict[str, Any]:
@@ -424,6 +511,8 @@ button:hover {{ background: #2447c4; }}
             "charter": chart.get("charter", ""),
             "notes": chart.get("notes", {}),
             "evidence": chart.get("evidence", []),
+            "llm_analysis": chart.get("llm_analysis", {}),
+            "local_features": chart.get("local_features", {}),
             "updated_at": chart.get("updated_at", ""),
         })
         return item

@@ -19,10 +19,11 @@ from ..constants import ALLOWED_TAGS, TAG_CATEGORIES, TAG_RULE_VERSION, TAG_WEIG
 from ..rule_tags import filter_allowed_tags, select_final_tags, sort_tags_by_weight
 from ..storage import CHART_TAGS_FILE, read_chart_tags, write_json_atomic
 from .onecat_client import OneCatClient
-from .structure_tagger import analyze_maidata_text
+from .structure_tagger import analyze_maidata_file, analyze_maidata_text
 
 CN_TZ = timezone(timedelta(hours=8))
 DEFAULT_CACHE_DIR = Path(__file__).resolve().parents[3] / "static" / "maidata_cache"
+DEFAULT_LEVELS_DIR = Path(__file__).resolve().parents[3] / "static" / "Levels"
 MIN_LOCAL_CONFIDENCE = 0.42
 
 
@@ -38,7 +39,14 @@ def analyze_song_id(music_id: str | int, client: OneCatClient | None = None, min
     return result
 
 
-def _merge_local_into_item(item: dict[str, Any], local: dict[str, Any], *, prefer_local: bool = True) -> dict[str, Any]:
+def _merge_local_into_item(
+    item: dict[str, Any],
+    local: dict[str, Any],
+    *,
+    prefer_local: bool = True,
+    source: str = "maidata_structure",
+    source_path: str = "",
+) -> dict[str, Any]:
     local_tags = filter_allowed_tags(local.get("tags") or [])
     local_scores = local.get("tag_scores") if isinstance(local.get("tag_scores"), dict) else {}
     conf = float(local.get("confidence") or 0.0)
@@ -46,7 +54,9 @@ def _merge_local_into_item(item: dict[str, Any], local: dict[str, Any], *, prefe
     item["local_tag_scores"] = local_scores
     item["local_confidence"] = conf
     item["local_features"] = local.get("features") or {}
-    item["local_source"] = "maidata_structure"
+    item["local_source"] = source
+    if source_path:
+        item["local_source_path"] = source_path
     item["local_updated_at"] = now_text()
 
     manual = filter_allowed_tags(item.get("manual_tags") or [])
@@ -95,6 +105,109 @@ def _merge_local_into_item(item: dict[str, Any], local: dict[str, Any], *, prefe
     item["tag_categories"] = {tag: TAG_CATEGORIES[tag] for tag in item.get("final_tags") or [] if tag in TAG_CATEGORIES}
     item["updated_at"] = now_text()
     return item
+
+
+def analyze_levels_file(path: str | Path, min_ds: float = 12.6) -> dict[str, Any]:
+    """分析一个 static/Levels 下的 MuConvert maidata 文件。"""
+    file_path = Path(path)
+    result = analyze_maidata_file(file_path, min_ds=min_ds)
+    fallback_id = file_path.name.split("_", 1)[0]
+    result["music_id"] = str(result.get("short_id") or fallback_id)
+    result["source"] = "levels_file"
+    result["source_path"] = str(file_path)
+    return result
+
+
+def iter_levels_files(directory: str | Path | None = None) -> list[Path]:
+    levels_dir = Path(directory) if directory else DEFAULT_LEVELS_DIR
+    if not levels_dir.exists():
+        return []
+    return sorted(path for path in levels_dir.glob("*.txt") if path.is_file())
+
+
+def rebuild_tags_from_levels(
+    *,
+    min_ds: float = 12.6,
+    directory: str | Path | None = None,
+    limit: int | None = None,
+    prefer_local: bool = True,
+) -> dict[str, Any]:
+    """从本地 Levels 全量重算高等级结构标签并写入标签库。"""
+    data = read_chart_tags()
+    if not isinstance(data, dict):
+        data = {}
+    charts = data.get("charts") if isinstance(data.get("charts"), dict) else {}
+    if not isinstance(charts, dict):
+        charts = {}
+
+    files = iter_levels_files(directory)
+    if limit is not None:
+        files = files[: max(0, int(limit))]
+
+    files_ok = files_fail = charts_updated = 0
+    errors: list[str] = []
+    for path in files:
+        try:
+            analyzed = analyze_levels_file(path, min_ds=min_ds)
+            music_id = str(analyzed.get("music_id") or "")
+            if not music_id:
+                raise ValueError("missing music id")
+            files_ok += 1
+            for level_s, local in (analyzed.get("charts") or {}).items():
+                key = f"{music_id}:{level_s}"
+                item = charts.get(key) if isinstance(charts.get(key), dict) else {
+                    "song_id": music_id,
+                    "title": analyzed.get("title") or "",
+                    "level_index": int(level_s),
+                    "ds": local.get("ds"),
+                    "bpm": local.get("bpm") or analyzed.get("whole_bpm"),
+                    "manual_tags": [],
+                    "llm_tags": [],
+                    "final_tags": [],
+                    "tags": [],
+                }
+                item.setdefault("song_id", music_id)
+                item.setdefault("title", analyzed.get("title") or "")
+                item["level_index"] = int(level_s)
+                item["ds"] = local.get("ds")
+                item["bpm"] = local.get("bpm") or analyzed.get("whole_bpm")
+                _merge_local_into_item(
+                    item,
+                    local,
+                    prefer_local=prefer_local,
+                    source="levels_file",
+                    source_path=str(path),
+                )
+                charts[key] = item
+                charts_updated += 1
+        except Exception as exc:
+            files_fail += 1
+            if len(errors) < 20:
+                errors.append(f"{path.name}: {type(exc).__name__}: {exc}")
+
+    data["charts"] = charts
+    data["updated_at"] = now_text()
+    data["tag_rule_version"] = TAG_RULE_VERSION
+    data["allowed_tags"] = ALLOWED_TAGS
+    data["tag_weights"] = TAG_WEIGHTS
+    data["local_tag_engine"] = {
+        "name": "levels_file_structure",
+        "source_directory": str(Path(directory) if directory else DEFAULT_LEVELS_DIR),
+        "min_ds": min_ds,
+        "min_confidence": MIN_LOCAL_CONFIDENCE,
+        "prefer_local": prefer_local,
+        "updated_at": now_text(),
+    }
+    write_json_atomic(CHART_TAGS_FILE, data)
+    return {
+        "ok": files_fail == 0,
+        "files_ok": files_ok,
+        "files_fail": files_fail,
+        "charts_updated": charts_updated,
+        "total_files": len(files),
+        "errors": errors,
+        "path": str(CHART_TAGS_FILE),
+    }
 
 
 def rebuild_tags_from_maidata(

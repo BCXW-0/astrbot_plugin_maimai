@@ -13,7 +13,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 </div>
 
 基于 [ZhiheZier/astrbot_plugin_maimaidx](https://github.com/ZhiheZier/astrbot_plugin_maimaidx) 二次开发。  
-版本记录见 [`CHANGELOG.md`](CHANGELOG.md)。
+版本记录见 [`CHANGELOG.md`](CHANGELOG.md)，完整指令触发方式与一句话说明见 [`static/help.txt`](static/help.txt)。
 
 ## 介绍
 
@@ -67,7 +67,7 @@ python -m playwright install chromium   # B50 / ginfo 等出图需要
 3. 定数表图片  
 4. 完成表图片  
 
-> 原独立指令 `更新maimai数据` / `更新别名库` / `更新定数表` / `更新完成表` 已移除；若仍输入旧指令，会提示改用 `舞萌初始化`。
+> `更新maimai数据` / `更新别名库` / `更新定数表` / `更新完成表` 已不再执行独立更新逻辑；兼容入口会提示改用 `舞萌初始化`。
 
 ## 配置
 
@@ -77,6 +77,9 @@ python -m playwright install chromium   # B50 / ginfo 等出图需要
 | `enable_reply` | 回复是否带引用 | `true` |
 | `maimaidxtoken` | 水鱼 Developer-Token（非 Import-Token） | 空 |
 | `roast_b50_provider_id` | 锐评专用模型 Provider ID | 空 |
+| `chart_tag_llm_provider_id` | 本地谱面分析专用模型 Provider ID；留空跟随当前模型 | 空 |
+| `chart_tag_llm_timeout_seconds` | 本地谱面分析单次模型调用超时（秒） | `150`（5-600） |
+| `chart_tag_llm_concurrency` | 本地谱面分析同时调用模型的数量；限流时设为 `1` | `4` |
 | `roast_persona_prompt_sample_limit` | 锐评人格样本上限 | `120` |
 | `roast_persona_webui_enabled` | 插件 WebUI | `false` |
 | `roast_persona_webui_host` / `port` / `token` | WebUI 监听与访问令牌 | `127.0.0.1` / `8796` / 空 |
@@ -165,7 +168,7 @@ Import-Token 请用户自行 `绑定水鱼`，不要写进仓库。
 http://127.0.0.1:8796/?token=你的token
 ```
 
-用途：锐评人格、加权谱面标签任务、命令说明、配置摘要。  
+用途：锐评人格、加权谱面标签任务、配置摘要；指令触发方式以 [`static/help.txt`](static/help.txt) 为准。
 监听非本机地址时必须配置 Token。
 
 ## 谱面标签
@@ -192,6 +195,14 @@ http://127.0.0.1:8796/?token=你的token
 - 排除纯物量摘要噪声；歧义标签（底力/手速等）需更强证据
 
 数据文件：`static/maimaidx_chart_tags.json`（含 `tag_scores` / `local_*`）。可 WebUI 手动覆写。
+
+### 本地谱面一键分析
+
+WebUI 的“谱面标签”页提供“本地谱面一键分析”：默认读取插件内的相对路径 `static/Levels`，只处理定数不低于 `12.6` 的难度。目录必须位于插件根目录内，避免通过路径参数读取插件外文件。
+
+任务会解析每个文件的 `lv_2` 至 `lv_6` 与 `inote_2` 至 `inote_6`，按实际 BPM 生成连续两小节窗口，并将结构摘要交给 AstrBot 对话模型。标签只表示反复出现并构成谱面主要游玩压力的难点，不表示配置曾经出现过；模型最多返回 5 个主要难点。结果和窗口证据写入 `static/maimaidx_chart_tags.json`；任务进度写入 `static/maimai_levels_llm_job.json`。可在 WebUI 中设置专用 Provider、单次调用超时、最低定数、文件数限制、难度数限制、强制重算和停止任务。阶段运行结果记录在 `ZHUANGWEI_ANALYSIS_REPORT.md`。
+
+撞尾专项分析使用严格规则：Slide 经过区域与目标音符的时间差必须满足 `0 < delta < 0.2s`，等于边界值不计入，目标原始语法含 `x` 的 Ex 音符排除。固定样本清单、完整事件、Slide 路径、候选位置和模型证据保存在 `static/chart_tag_llm_sample_manifest.json` 与 `static/chart_tag_llm_training_dataset.jsonl`；本地模型及逐 epoch Loss 保存在 `static/maimai_chart_tag_local_model.npz`、`static/maimai_chart_tag_local_model.json` 和 `static/chart_tag_llm_training_loss.json`。模型审核前 `formal_pipeline_enabled=false`，不会接管正式打标。
 
 ## 数据与安全
 

@@ -29,6 +29,7 @@ let pendingForce = false;
 let cachedPersonas = [];
 let allowedChartTags = [];
 let currentChartTagKey = '';
+let levelsLLMPollTimer = null;
 
 function api(path) {
   const token = location.search.replace(/^\?/, '');
@@ -102,28 +103,62 @@ async function loadOverview() {
 async function loadTagsStatus() {
   if (!tagsBox) return;
   tagsBox.innerHTML = '<div class="empty">正在读取谱面标签任务状态...</div>';
-  const data = await jsonFetch('/api/chart_tags/status');
+  const [data, levelsData] = await Promise.all([
+    jsonFetch('/api/chart_tags/status'),
+    jsonFetch('/api/levels_llm/status')
+  ]);
   if (!data.ok) {
     tagsBox.innerHTML = '<div class="empty">谱面标签状态加载失败</div>';
     return;
   }
-  renderTagsStatus(data);
+  renderTagsStatus(data, levelsData.ok === false ? {} : levelsData);
 }
 
-function renderTagsStatus(data) {
+function renderTagsStatus(data, levelsData) {
   const total = Number(data.total || 0);
   const tagged = Number(data.tagged || 0);
   const untagged = Number(data.untagged ?? Math.max(0, total - tagged));
   const percent = total ? Math.round(tagged * 1000 / total) / 10 : 0;
+  const levelsStatus = renderLevelsLLMStatus(levelsData || {});
   tagsBox.innerHTML = '<div class="tag-hero"><div><b>' + percent + '%</b><span>已完成标签抽取</span></div><div class="tag-ring" style="--p:' + percent + '%"></div></div>' +
     '<div class="tag-stats"><div><span>总谱面</span><b>' + total + '</b></div><div><span>有标签的谱面数</span><b>' + tagged + '</b></div><div><span>无标签的谱面数</span><b>' + untagged + '</b></div></div>' +
-    '<div class="tip">插件更新会随静态资源携带已维护的标签 JSON；自动更新会以当前本地标签文件为底座，只补齐缺失或规则过期的谱面。自动更新只基于玩家资料和保守关键词规则抽取主观标签；已存在手动、最终或自动标签的谱面不会进入自动队列。没有可用资料时会标记为无资料，不会根据本地谱面信息猜标签。</div>' +
+    '<div class="tip">联网补缺使用玩家资料和保守关键词规则；本地谱面分析读取下方目录并调用 AstrBot 对话模型。</div>' +
     '<div class="tag-meta"><p><b>状态：</b>' + (data.running ? '运行中' : '未运行') + '</p><p><b>当前：</b>' + (data.current_title || data.last_title || '暂无') + '</p><p><b>批次：</b>' + (data.message || '暂无') + '</p><p><b>文件：</b>' + (data.path || '') + '</p><p><b>最近错误：</b>' + (data.last_error || '无') + '</p></div>' +
-    '<div class="row"><button id="generateTagsBtn" class="secondary">生成基础标签文件</button><button id="startTagsBtn">自动更新补缺</button><button id="stopTagsBtn" class="danger">停止任务</button><button id="refreshTagsBtn" class="ghost">刷新状态</button></div><div id="tagsResult" class="result"></div>';
+    '<div class="row"><button id="generateTagsBtn" class="secondary">生成基础标签文件</button><button id="startTagsBtn">自动更新补缺</button><button id="stopTagsBtn" class="danger">停止任务</button><button id="refreshTagsBtn" class="ghost">刷新状态</button></div><div id="tagsResult" class="result"></div>' +
+    levelsStatus;
   $('generateTagsBtn').addEventListener('click', () => withLoading($('generateTagsBtn'), generateTagsBase));
   $('startTagsBtn').addEventListener('click', () => withLoading($('startTagsBtn'), startTagsJob));
   $('stopTagsBtn').addEventListener('click', () => withLoading($('stopTagsBtn'), stopTagsJob));
   $('refreshTagsBtn').addEventListener('click', () => withLoading($('refreshTagsBtn'), loadTagsStatus));
+  $('startLevelsLLMBtn').addEventListener('click', () => withLoading($('startLevelsLLMBtn'), startLevelsLLM));
+  $('stopLevelsLLMBtn').addEventListener('click', () => withLoading($('stopLevelsLLMBtn'), stopLevelsLLM));
+  $('refreshLevelsLLMBtn').addEventListener('click', () => withLoading($('refreshLevelsLLMBtn'), loadTagsStatus));
+  scheduleLevelsLLMPoll(Boolean(levelsData && levelsData.running));
+}
+
+function renderLevelsLLMStatus(data) {
+  const running = Boolean(data.running);
+  const processed = Number(data.processed || 0);
+  const chartsTotal = Number(data.charts_total || 0);
+  const updated = Number(data.charts_updated || 0);
+  const skipped = Number(data.skipped || 0);
+  const failed = Number(data.failed || 0);
+  const modelCalls = Number(data.model_calls || 0);
+  const current = data.current_chart || data.current_file || '暂无';
+  const message = data.message || (running ? '运行中' : '未运行');
+  return '<section class="levels-llm-panel"><div class="levels-llm-head"><div><h4>本地谱面一键分析</h4><p class="muted">按连续两小节窗口调用 AstrBot 对话模型，结果写入标签文件。</p></div><span class="badge">' + (running ? '运行中' : '未运行') + '</span></div>' +
+    '<div class="levels-llm-form"><label>谱面目录<input id="levelsLLMDirectory" value="static/Levels" spellcheck="false"></label><label>最低定数<input id="levelsLLMMinDs" type="number" min="12.6" step="0.1" value="' + escapeHtml(data.min_ds ?? 12.6) + '"></label><label>文件数限制<input id="levelsLLMLimit" type="number" min="1" step="1" placeholder="全部"></label><label>难度数限制<input id="levelsLLMChartLimit" type="number" min="1" step="1" placeholder="全部"></label><label class="check-line"><input id="levelsLLMForce" type="checkbox"> 强制重算</label></div>' +
+    '<div class="tag-stats levels-llm-stats"><div><span>处理谱面</span><b>' + processed + ' / ' + chartsTotal + '</b></div><div><span>已更新</span><b>' + updated + '</b></div><div><span>模型调用</span><b>' + modelCalls + '</b></div><div><span>跳过</span><b>' + skipped + '</b></div><div><span>失败</span><b>' + failed + '</b></div></div>' +
+    '<div class="tag-meta compact"><p><b>状态：</b>' + escapeHtml(message) + '</p><p><b>当前：</b>' + escapeHtml(current) + '</p><p><b>目录：</b>' + escapeHtml(data.resolved_directory || data.directory || 'static/Levels') + '</p><p><b>最近错误：</b>' + escapeHtml(data.last_error || '无') + '</p></div>' +
+    '<div class="row"><button id="startLevelsLLMBtn">一键分析</button><button id="stopLevelsLLMBtn" class="danger">停止模型分析</button><button id="refreshLevelsLLMBtn" class="ghost">刷新模型状态</button></div><div id="levelsLLMResult" class="result"></div></section>';
+}
+
+function scheduleLevelsLLMPoll(running) {
+  clearTimeout(levelsLLMPollTimer);
+  levelsLLMPollTimer = null;
+  if (running) {
+    levelsLLMPollTimer = setTimeout(loadTagsStatus, 3000);
+  }
 }
 
 function setTagsResult(ok, message) {
@@ -149,6 +184,49 @@ async function startTagsJob() {
 async function stopTagsJob() {
   const data = await jsonFetch('/api/chart_tags/stop', { method: 'POST' });
   setTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
+  await loadTagsStatus();
+}
+
+function setLevelsLLMResult(ok, message) {
+  const box = $('levelsLLMResult');
+  if (!box) return;
+  box.className = 'result ' + (ok ? 'ok' : 'err');
+  box.textContent = message;
+  showToast(message);
+}
+
+async function startLevelsLLM() {
+  const directory = $('levelsLLMDirectory').value.trim() || 'static/Levels';
+  const minDs = Number($('levelsLLMMinDs').value || 12.6);
+  const limitValue = $('levelsLLMLimit').value.trim();
+  const limit = limitValue ? Number(limitValue) : null;
+  const chartLimitValue = $('levelsLLMChartLimit').value.trim();
+  const chartLimit = chartLimitValue ? Number(chartLimitValue) : null;
+  const force = $('levelsLLMForce').checked;
+  if (!Number.isFinite(minDs) || minDs < 12.6) {
+    setLevelsLLMResult(false, '最低定数不能低于 12.6');
+    return;
+  }
+  if (limit !== null && (!Number.isInteger(limit) || limit < 1)) {
+    setLevelsLLMResult(false, '文件数限制必须是正整数');
+    return;
+  }
+  if (chartLimit !== null && (!Number.isInteger(chartLimit) || chartLimit < 1)) {
+    setLevelsLLMResult(false, '难度数限制必须是正整数');
+    return;
+  }
+  const data = await jsonFetch('/api/levels_llm/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ directory, min_ds: minDs, limit, chart_limit: chartLimit, force })
+  });
+  setLevelsLLMResult(Boolean(data.ok), data.message || JSON.stringify(data));
+  await loadTagsStatus();
+}
+
+async function stopLevelsLLM() {
+  const data = await jsonFetch('/api/levels_llm/stop', { method: 'POST' });
+  setLevelsLLMResult(Boolean(data.ok), data.message || JSON.stringify(data));
   await loadTagsStatus();
 }
 
@@ -217,11 +295,15 @@ function renderChartTagEditor(item) {
   const selected = new Set(item.manual_tags || []);
   const checks = allowedChartTags.map(tag => '<label class="tag-check"><input type="checkbox" value="' + escapeHtml(tag) + '" ' + (selected.has(tag) ? 'checked' : '') + '><span>' + escapeHtml(tag) + '</span></label>').join('');
   const evidence = (item.evidence || []).slice(0, 6).map(e => '<li><a href="' + escapeHtml(e.url || '#') + '" target="_blank" rel="noreferrer"></a><p></p></li>').join('');
+  const llm = item.llm_analysis && typeof item.llm_analysis === 'object' ? item.llm_analysis : {};
+  const llmEvidence = Array.isArray(llm.evidence) ? llm.evidence.slice(0, 6) : [];
+  const llmEvidenceHtml = llmEvidence.map(() => '<li><b></b><p></p></li>').join('');
   tagEditorBox.innerHTML = '<div class="chart-editor-head"><div><h4></h4><p class="muted"></p></div><span class="badge"></span></div>' +
     '<div class="tag-meta compact"><p><b>谱师：</b>' + escapeHtml(item.charter || '未知') + '</p><p><b>定数：</b>' + escapeHtml(item.ds ?? '未知') + ' / 拟合 ' + escapeHtml(item.fit_diff ?? '未知') + '</p><p><b>物量：</b>' + escapeHtml(JSON.stringify(item.notes || {})) + '</p><p><b>自动标签：</b>' + escapeHtml(tagText(item.llm_tags)) + '</p><p><b>最终标签：</b>' + escapeHtml(tagText(item.final_tags)) + '</p></div>' +
     '<div class="tag-check-grid">' + checks + '</div>' +
     '<div class="row"><button id="saveManualTagsBtn">保存手动标签</button><button id="clearManualTagsBtn" class="ghost">清空手动标签</button></div>' +
-    '<details class="evidence-box"><summary>查看搜索证据</summary><ol>' + evidence + '</ol></details>';
+    '<details class="evidence-box"><summary>查看搜索证据</summary><ol>' + evidence + '</ol></details>' +
+    '<details class="evidence-box levels-source"><summary>查看本地模型分析</summary><div class="tag-meta compact"><p><b>来源：</b>' + escapeHtml(item.local_source_path || item.local_source || '暂无') + '</p><p><b>置信度：</b>' + escapeHtml(item.local_confidence ?? '未知') + '</p><p><b>摘要：</b>' + escapeHtml(llm.summary || '暂无模型摘要') + '</p></div><ol>' + llmEvidenceHtml + '</ol></details>';
   tagEditorBox.querySelector('h4').textContent = item.title || item.key;
   tagEditorBox.querySelector('.chart-editor-head .muted').textContent = item.song_id + ' · ' + item.difficulty + ' · ' + item.level + ' · ' + (item.type || '');
   tagEditorBox.querySelector('.badge').textContent = item.tag_status || '未处理';
@@ -229,6 +311,11 @@ function renderChartTagEditor(item) {
     const e = (item.evidence || [])[idx] || {};
     li.querySelector('a').textContent = e.title || e.url || '搜索证据';
     li.querySelector('p').textContent = e.summary || '';
+  });
+  tagEditorBox.querySelectorAll('.levels-source li').forEach((li, idx) => {
+    const e = llmEvidence[idx] || {};
+    li.querySelector('b').textContent = (e.window || '窗口') + ' · ' + tagText(e.tags);
+    li.querySelector('p').textContent = e.reason || '';
   });
   $('saveManualTagsBtn').addEventListener('click', () => withLoading($('saveManualTagsBtn'), saveManualTags));
   $('clearManualTagsBtn').addEventListener('click', () => withLoading($('clearManualTagsBtn'), clearManualTags));

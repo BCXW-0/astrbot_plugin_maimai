@@ -36,6 +36,9 @@ class NoteEvent:
     duration: float = 0.0
     is_break: bool = False
     raw: str = ""
+    bpm: float = 0.0
+    path: tuple[str, ...] = ()
+    is_ex: bool = False
 
 
 @dataclass
@@ -183,6 +186,34 @@ def parse_inote(body: str, default_bpm: float = 120.0) -> tuple[list[NoteEvent],
     return events, first_bpm
 
 
+def _slide_path(start: str, end: str, shape: str) -> tuple[str, ...]:
+    """Return discrete ring areas crossed by a slide, including both endpoints."""
+    try:
+        first = int(start)
+        last = int(end)
+    except (TypeError, ValueError):
+        return (str(start), str(end))
+    if first == last:
+        return (str(first),)
+    shape = str(shape or "")
+    if "<" in shape or "q" in shape.lower():
+        direction = -1
+    elif ">" in shape or "p" in shape.lower():
+        direction = 1
+    else:
+        clockwise = (last - first) % 8
+        counter = (first - last) % 8
+        direction = 1 if clockwise <= counter else -1
+    result = [first]
+    current = first
+    for _ in range(8):
+        current = ((current - 1 + direction) % 8) + 1
+        result.append(current)
+        if current == last:
+            return tuple(str(value) for value in result)
+    return (str(first), str(last))
+
+
 def _parse_group(token: str, time: float, bpm: float) -> list[NoteEvent]:
     if not token or token == "E":
         return []
@@ -207,7 +238,7 @@ def _parse_atom(atom: str, time: float, bpm: float) -> list[NoteEvent]:
 
     m = re.match(r"^([1-8])(?:b|x|f)*h\[([^\]]+)\]$", atom)
     if m:
-        return [NoteEvent(time=time, kind="hold", buttons=(m.group(1),), duration=_duration_seconds(bpm, m.group(2)), is_break=is_break, raw=raw)]
+        return [NoteEvent(time=time, kind="hold", buttons=(m.group(1),), duration=_duration_seconds(bpm, m.group(2)), is_break=is_break, raw=raw, bpm=bpm, is_ex=("x" in atom))]
 
     m = re.match(r"^([1-8])([ppqqwWV<>\^\-zZ$?!@]*)([1-8])(?:b|x|f)*\[([^\]]+)\]$", atom)
     if m:
@@ -219,20 +250,23 @@ def _parse_atom(atom: str, time: float, bpm: float) -> list[NoteEvent]:
             duration=_duration_seconds(bpm, m.group(4)),
             is_break=is_break,
             raw=raw,
+            bpm=bpm,
+            path=_slide_path(m.group(1), m.group(3), m.group(2) or "-"),
+            is_ex=("x" in atom),
         )]
 
     m = re.match(r"^((?:Ch|C)|(?:[ABDE][1-8]))(?:b|x|f)*h?\[([^\]]+)\]$", atom)
     if m:
-        return [NoteEvent(time=time, kind="touch", buttons=(m.group(1),), duration=_duration_seconds(bpm, m.group(2)), is_break=is_break, raw=raw)]
+        return [NoteEvent(time=time, kind="touch", buttons=(m.group(1),), duration=_duration_seconds(bpm, m.group(2)), is_break=is_break, raw=raw, bpm=bpm, is_ex=("x" in atom))]
 
     m = re.match(r"^((?:Ch|C)|(?:[ABDE][1-8]))(?:b|x|f)*$", atom)
     if m:
-        return [NoteEvent(time=time, kind="touch", buttons=(m.group(1),), is_break=is_break, raw=raw)]
+        return [NoteEvent(time=time, kind="touch", buttons=(m.group(1),), is_break=is_break, raw=raw, bpm=bpm, is_ex=("x" in atom))]
 
     m = re.match(r"^([1-8])(?:b|x|f)*$", atom)
     if m:
         kind = "break" if "b" in atom else "tap"
-        return [NoteEvent(time=time, kind=kind, buttons=(m.group(1),), is_break=("b" in atom), raw=raw)]
+        return [NoteEvent(time=time, kind=kind, buttons=(m.group(1),), is_break=("b" in atom), raw=raw, bpm=bpm, is_ex=("x" in atom))]
 
     buttons = tuple(re.findall(r"[1-8]", atom))
     if not buttons:
@@ -240,4 +274,4 @@ def _parse_atom(atom: str, time: float, bpm: float) -> list[NoteEvent]:
     sm = re.search(r"\[([^\]]+)\]", atom)
     dur = _duration_seconds(bpm, sm.group(1)) if sm else 0.0
     kind = "slide" if sm and len(buttons) >= 2 else ("hold" if "h[" in atom else "tap")
-    return [NoteEvent(time=time, kind=kind, buttons=buttons, duration=dur, is_break=("b" in atom), raw=raw)]
+    return [NoteEvent(time=time, kind=kind, buttons=buttons, duration=dur, is_break=("b" in atom), raw=raw, bpm=bpm, path=_slide_path(buttons[0], buttons[-1], "-") if kind == "slide" and len(buttons) >= 2 else (), is_ex=("x" in atom))]
