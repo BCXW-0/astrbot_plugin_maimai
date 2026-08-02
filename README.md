@@ -178,6 +178,7 @@ http://127.0.0.1:8796/?token=你的token
 - 只保存谱面 `.txt` 到 `static/Levels`，不保存 BGA、音频、宴谱或其他资源，并按谱面内的 `&shortid` 与 `&title` 命名。
 - 使用 `static/maimai_chart_tag_model.npz` 执行强制重算或新谱计算，默认分析 `12.6 - 15.0` 的 Expert / Master / Re:Master。
 - 按 ID、曲名、艺术家、谱师或定数查看本地模型标签、概率、分析窗口和来源映射。
+- 下载任务会在 OneCat 完成筛选后显示候选歌曲总数、当前处理数和当前谱面；任务启动阶段会先显示等待筛选状态。
 
 标签库的每个本地条目都保留 `mapping`：`tag_file` / `tag_file_key` 明确标签文件及其 `shortid:level_index` 键，`diff_id` 对应谱面中的 `&inote_N`，并同时记录 `static/Levels` 相对路径、源文件 SHA-256、曲名、艺术家、定数、BPM、谱师和 `mapping_id`。顶层 `chart_mapping` 可由标签 key 反查谱面，`chart_file_mapping` 可由一个谱面文件列出其中所有难度和对应标签 key；详情接口还会返回同文件的完整难度索引。下载完成后会先创建待分析条目，分析结果写回同一条目，不依赖文件名猜测曲目。
 

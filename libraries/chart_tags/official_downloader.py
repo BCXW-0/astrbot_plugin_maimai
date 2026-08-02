@@ -230,6 +230,7 @@ class OfficialChartDownloader:
             "max_ds": high,
             "query": query_value,
             "selected": selected_count,
+            "total": selected_count,
             "processed": 0,
             "downloaded": 0,
             "skipped_existing": 0,

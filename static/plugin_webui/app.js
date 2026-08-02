@@ -142,7 +142,7 @@ function renderAutoTagsStatus(data) {
   const analyzed = Number(data.catalog_analyzed || 0);
   const tagged = Number(data.catalog_tagged || 0);
   const percent = total ? Math.round(analyzed * 1000 / total) / 10 : 0;
-  const taskTotal = Number(data.total || 0);
+  const taskTotal = Number(data.total ?? data.selected ?? 0);
   const processed = Number(data.processed || 0);
   const taskPercent = taskTotal ? Math.min(100, Math.round(processed * 1000 / taskTotal) / 10) : (data.running ? 0 : 100);
   const taskName = data.task === 'download' ? '下载谱面' : data.task === 'analysis' ? '谱面分析' : '暂无任务';

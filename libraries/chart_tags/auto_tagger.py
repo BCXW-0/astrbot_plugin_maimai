@@ -490,6 +490,9 @@ class AutoTagJob:
                 "max_ds": high,
                 "mode": mode_value,
                 "query": query_value,
+                "selected": 0,
+                "total": 0,
+                "processed": 0,
                 "started_at": now_text(),
                 "error": "",
             })
