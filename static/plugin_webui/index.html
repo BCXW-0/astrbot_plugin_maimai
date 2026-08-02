@@ -15,7 +15,6 @@
     <nav class="nav-tabs">
       <button class="nav active" data-tab="overview">总览</button>
       <button class="nav" data-tab="persona">锐评人格</button>
-      <button class="nav" data-tab="auto-tags">自动打标</button>
       <button class="nav" data-tab="tags">谱面标签</button>
       <button class="nav" data-tab="config">配置管理</button>
       <button class="nav" data-tab="commands">命令说明</button>
@@ -71,42 +70,24 @@
         <aside class="card side-list"><div class="card-head"><h3>人格库</h3><button id="refreshBtn" class="secondary small-btn">刷新</button></div><div id="list" class="persona-list"></div></aside>
       </div>
     </section>
-    <section id="auto-tags" class="tab-panel">
+    <section id="tags" class="tab-panel">
       <div class="grid auto-layout">
         <article class="card auto-control-card">
-          <div class="card-head"><div><h3>自动打标</h3><p class="muted">本地谱面文件与本地标签模型</p></div><span id="autoModelBadge" class="badge">读取中</span></div>
-          <div id="autoTagsStatusBox" class="tag-grid"><div class="empty">正在读取自动打标状态...</div></div>
+          <div class="card-head"><div><h3>本地模型打标</h3><p class="muted">下载谱面并使用本地模型分析</p></div><span id="autoModelBadge" class="badge">读取中</span></div>
+          <div id="autoTagsStatusBox" class="tag-grid"><div class="empty">正在读取本地模型状态...</div></div>
           <div class="row auto-actions"><button id="openAutoDownloadBtn" class="secondary">下载谱面</button><button id="openAutoAnalyzeBtn">谱面分析</button><button id="autoStopBtn" class="danger">停止任务</button><button id="refreshAutoTagsBtn" class="ghost">刷新</button></div>
           <div id="autoTagsResult" class="result"></div>
         </article>
         <article class="card">
-          <div class="card-head"><div><h3>打标检索</h3><p class="muted">ID、曲名、艺术家、谱师或定数</p></div><button id="autoSearchBtn" class="secondary small-btn">搜索</button></div>
+          <div class="card-head"><div><h3>模型结果检索</h3><p class="muted">按 ID、曲名、艺术家、谱师或定数查找</p></div><button id="autoSearchBtn" class="secondary small-btn">搜索</button></div>
           <div class="auto-search-row"><input id="autoSearchInput" placeholder="输入检索内容"><select id="autoSearchDs"><option value="">全部定数</option><option value="10.0-12.5">10.0 - 12.5</option><option value="12.6-13.9">12.6 - 13.9</option><option value="14.0-15.0">14.0 - 15.0</option></select></div>
           <div id="autoTagResultsBox" class="chart-result-list"></div>
         </article>
       </div>
       <article class="card auto-detail-card">
-        <h3>谱面详情</h3>
+        <h3>本地模型详情</h3>
         <div id="autoTagDetailBox" class="empty">先从右侧选择一个谱面</div>
       </article>
-    </section>
-    <section id="tags" class="tab-panel">
-      <div class="card">
-        <h3>谱面标签</h3>
-        <div id="tagsBox" class="tag-grid"></div>
-      </div>
-      <div class="grid tag-manage-grid">
-        <section class="card">
-          <div class="card-head"><h3>手动管理</h3><button id="tagSearchBtn" class="secondary small-btn">搜索</button></div>
-          <input id="tagSearchInput" placeholder="输入曲名、ID、难度、谱师">
-          <div id="tagResultsBox" class="chart-result-list"></div>
-        </section>
-        <section class="card">
-          <h3>标签编辑</h3>
-          <div id="tagEditorBox" class="empty">先从左侧选择一个谱面</div>
-          <div id="tagManageResult" class="result"></div>
-        </section>
-      </div>
     </section>
     <section id="config" class="tab-panel">
       <div class="card">

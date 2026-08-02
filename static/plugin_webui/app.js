@@ -16,12 +16,6 @@ const jsonFileInput = $('jsonFile');
 const fileText = $('fileText');
 const importBtn = $('importBtn');
 const importResultBox = $('importResult');
-const tagsBox = $('tagsBox');
-const tagSearchInput = $('tagSearchInput');
-const tagSearchBtn = $('tagSearchBtn');
-const tagResultsBox = $('tagResultsBox');
-const tagEditorBox = $('tagEditorBox');
-const tagManageResultBox = $('tagManageResult');
 const autoTagsStatusBox = $('autoTagsStatusBox');
 const autoTagsResultBox = $('autoTagsResult');
 const autoModelBadge = $('autoModelBadge');
@@ -34,15 +28,17 @@ const autoDownloadModal = $('autoDownloadModal');
 const autoAnalyzeModal = $('autoAnalyzeModal');
 let pendingForce = false;
 let cachedPersonas = [];
-let allowedChartTags = [];
-let currentChartTagKey = '';
-let currentAutoTagKey = '';
 let autoStatusTimer = null;
 
+function accessToken() {
+  return new URLSearchParams(window.location.search).get('token') || '';
+}
+
 function api(path) {
-  const token = location.search.replace(/^\?/, '');
-  if (!token) return path;
-  return path + (path.includes('?') ? '&' : '?') + token;
+  const url = new URL(path, window.location.href);
+  const token = accessToken();
+  if (token) url.searchParams.set('token', token);
+  return url.pathname + url.search + url.hash;
 }
 
 function showToast(message) {
@@ -85,8 +81,27 @@ async function withLoading(el, fn) {
 }
 
 async function jsonFetch(path, options) {
-  const res = await fetch(api(path), options);
-  return await res.json().catch(() => ({ ok: false, message: '请求失败' }));
+  try {
+    const requestOptions = { ...(options || {}) };
+    const headers = new Headers(requestOptions.headers || {});
+    const token = accessToken();
+    if (token) headers.set('X-Access-Token', token);
+    requestOptions.headers = headers;
+    const res = await fetch(api(path), requestOptions);
+    const text = await res.text();
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (_error) {
+      data = {};
+    }
+    if (!res.ok) {
+      return { ok: false, message: data.message || ('请求失败（HTTP ' + res.status + '）') };
+    }
+    return data && typeof data === 'object' ? data : { ok: false, message: '接口返回格式不正确' };
+  } catch (error) {
+    return { ok: false, message: '请求失败：无法连接 WebUI 接口' };
+  }
 }
 
 async function loadOverview() {
@@ -106,59 +121,6 @@ async function loadOverview() {
     card.querySelector('b').textContent = value;
     box.appendChild(card);
   });
-}
-
-async function loadTagsStatus() {
-  if (!tagsBox) return;
-  tagsBox.innerHTML = '<div class="empty">正在读取谱面标签任务状态...</div>';
-  const data = await jsonFetch('/api/chart_tags/status');
-  if (!data.ok) {
-    tagsBox.innerHTML = '<div class="empty">谱面标签状态加载失败</div>';
-    return;
-  }
-  renderTagsStatus(data);
-}
-
-function renderTagsStatus(data) {
-  const total = Number(data.total || 0);
-  const tagged = Number(data.tagged || 0);
-  const untagged = Number(data.untagged ?? Math.max(0, total - tagged));
-  const percent = total ? Math.round(tagged * 1000 / total) / 10 : 0;
-  tagsBox.innerHTML = '<div class="tag-hero"><div><b>' + percent + '%</b><span>已完成标签抽取</span></div><div class="tag-ring" style="--p:' + percent + '%"></div></div>' +
-    '<div class="tag-stats"><div><span>总谱面</span><b>' + total + '</b></div><div><span>有标签的谱面数</span><b>' + tagged + '</b></div><div><span>无标签的谱面数</span><b>' + untagged + '</b></div></div>' +
-    '<div class="tip">联网补缺使用玩家资料和保守关键词规则；本地谱面元数据审计在插件外离线完成。</div>' +
-    '<div class="tag-meta"><p><b>状态：</b>' + (data.running ? '运行中' : '未运行') + '</p><p><b>当前：</b>' + (data.current_title || data.last_title || '暂无') + '</p><p><b>批次：</b>' + (data.message || '暂无') + '</p><p><b>文件：</b>' + (data.path || '') + '</p><p><b>最近错误：</b>' + (data.last_error || '无') + '</p></div>' +
-    '<div class="row"><button id="generateTagsBtn" class="secondary">生成基础标签文件</button><button id="startTagsBtn">自动更新补缺</button><button id="stopTagsBtn" class="danger">停止任务</button><button id="refreshTagsBtn" class="ghost">刷新状态</button></div><div id="tagsResult" class="result"></div>';
-  $('generateTagsBtn').addEventListener('click', () => withLoading($('generateTagsBtn'), generateTagsBase));
-  $('startTagsBtn').addEventListener('click', () => withLoading($('startTagsBtn'), startTagsJob));
-  $('stopTagsBtn').addEventListener('click', () => withLoading($('stopTagsBtn'), stopTagsJob));
-  $('refreshTagsBtn').addEventListener('click', () => withLoading($('refreshTagsBtn'), loadTagsStatus));
-}
-
-function setTagsResult(ok, message) {
-  const box = $('tagsResult');
-  if (!box) return;
-  box.className = 'result ' + (ok ? 'ok' : 'err');
-  box.textContent = message;
-  showToast(message);
-}
-
-async function generateTagsBase() {
-  const data = await jsonFetch('/api/chart_tags/generate', { method: 'POST' });
-  setTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
-  await loadTagsStatus();
-}
-
-async function startTagsJob() {
-  const data = await jsonFetch('/api/chart_tags/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ batch_size: 50 }) });
-  setTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
-  await loadTagsStatus();
-}
-
-async function stopTagsJob() {
-  const data = await jsonFetch('/api/chart_tags/stop', { method: 'POST' });
-  setTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
-  await loadTagsStatus();
 }
 
 function setAutoTagsResult(ok, message) {
@@ -193,9 +155,10 @@ function renderAutoTagsStatus(data) {
 
 async function loadAutoTagsStatus() {
   if (!autoTagsStatusBox) return;
-  const data = await jsonFetch('/api/auto_tags/status');
+  const data = await jsonFetch('/api/chart_tags/status');
   if (!data.ok) {
-    autoTagsStatusBox.innerHTML = '<div class="empty">自动打标状态加载失败</div>';
+    autoModelBadge.textContent = '接口不可用';
+    autoTagsStatusBox.innerHTML = '<div class="empty">' + escapeHtml(data.message || '本地模型状态加载失败') + '</div>';
     return data;
   }
   renderAutoTagsStatus(data);
@@ -237,7 +200,7 @@ async function startAutoDownload() {
     setAutoTagsResult(false, '搜索下载需要填写搜索词');
     return;
   }
-  const data = await jsonFetch('/api/auto_tags/download', {
+  const data = await jsonFetch('/api/chart_tags/download', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ min_ds: Number($('downloadMinDs').value), max_ds: Number($('downloadMaxDs').value), mode, query })
@@ -251,7 +214,7 @@ async function startAutoDownload() {
 
 async function startAutoAnalyze() {
   const mode = document.querySelector('input[name="analyzeMode"]:checked')?.value || 'new';
-  const data = await jsonFetch('/api/auto_tags/analyze', {
+  const data = await jsonFetch('/api/chart_tags/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ min_ds: Number($('analyzeMinDs').value), max_ds: Number($('analyzeMaxDs').value), force: mode === 'force' })
@@ -264,7 +227,7 @@ async function startAutoAnalyze() {
 }
 
 async function stopAutoTags() {
-  const data = await jsonFetch('/api/auto_tags/stop', { method: 'POST' });
+  const data = await jsonFetch('/api/chart_tags/stop', { method: 'POST' });
   setAutoTagsResult(Boolean(data.ok), data.message || JSON.stringify(data));
   await loadAutoTagsStatus();
 }
@@ -274,7 +237,7 @@ async function searchAutoTags() {
   const range = dsRangeValue($('autoSearchDs').value);
   const query = $('autoSearchInput').value.trim();
   autoTagResultsBox.innerHTML = '<div class="empty">正在搜索谱面...</div>';
-  const data = await jsonFetch('/api/auto_tags/search?q=' + encodeURIComponent(query) + '&min_ds=' + range[0] + '&max_ds=' + range[1] + '&limit=100');
+  const data = await jsonFetch('/api/chart_tags/search?q=' + encodeURIComponent(query) + '&min_ds=' + range[0] + '&max_ds=' + range[1] + '&limit=100');
   if (!data.ok) {
     autoTagResultsBox.innerHTML = '<div class="empty">' + escapeHtml(data.message || '搜索失败') + '</div>';
     return;
@@ -304,7 +267,7 @@ function renderAutoTagSearchResults(items) {
 }
 
 function renderAutoTagDetail(item) {
-  const tags = item.model_tags || item.llm_tags || [];
+  const tags = item.model_tags || [];
   const mapping = item.mapping || {};
   const fileMapping = item.file_mapping || {};
   const probabilities = Object.entries(item.model_probabilities || {}).sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 10);
@@ -322,22 +285,14 @@ function renderAutoTagDetail(item) {
 }
 
 async function loadAutoTagDetail(key) {
-  currentAutoTagKey = key;
   autoTagDetailBox.className = 'empty';
   autoTagDetailBox.textContent = '正在读取谱面标签...';
-  const data = await jsonFetch('/api/auto_tags/' + encodeURIComponent(key));
+  const data = await jsonFetch('/api/chart_tags/' + encodeURIComponent(key));
   if (!data.ok) {
     autoTagDetailBox.textContent = data.message || '读取失败';
     return;
   }
   renderAutoTagDetail(data.item);
-}
-
-function setTagManageResult(ok, message) {
-  if (!tagManageResultBox) return;
-  tagManageResultBox.className = 'result ' + (ok ? 'ok' : 'err');
-  tagManageResultBox.textContent = message;
-  showToast(message);
 }
 
 function tagText(tags) {
@@ -346,100 +301,6 @@ function tagText(tags) {
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-}
-
-async function searchChartTags() {
-  if (!tagResultsBox) return;
-  const query = tagSearchInput.value.trim();
-  tagResultsBox.innerHTML = '<div class="empty">正在搜索谱面...</div>';
-  const data = await jsonFetch('/api/chart_tags/search?q=' + encodeURIComponent(query) + '&limit=60');
-  if (!data.ok) {
-    tagResultsBox.innerHTML = '<div class="empty">' + (data.message || '搜索失败') + '</div>';
-    return;
-  }
-  allowedChartTags = data.allowed_tags || allowedChartTags;
-  renderTagSearchResults(data.items || []);
-}
-
-function renderTagSearchResults(items) {
-  if (!items.length) {
-    tagResultsBox.innerHTML = '<div class="empty">没有找到匹配谱面</div>';
-    return;
-  }
-  const frag = document.createDocumentFragment();
-  items.forEach(item => {
-    const div = document.createElement('button');
-    div.type = 'button';
-    div.className = 'chart-result';
-    div.dataset.key = item.key;
-    div.innerHTML = '<strong></strong><span></span><small></small>';
-    div.querySelector('strong').textContent = item.title || item.key;
-    div.querySelector('span').textContent = item.song_id + ' · ' + item.difficulty + ' · ' + item.level + ' · ' + (item.type || '');
-    div.querySelector('small').textContent = '标签：' + tagText(item.final_tags) + ' / 手动：' + tagText(item.manual_tags);
-    frag.appendChild(div);
-  });
-  tagResultsBox.innerHTML = '';
-  tagResultsBox.appendChild(frag);
-}
-
-async function loadChartTagDetail(key) {
-  currentChartTagKey = key;
-  tagEditorBox.innerHTML = '<div class="empty">正在读取谱面标签...</div>';
-  const data = await jsonFetch('/api/chart_tags/' + encodeURIComponent(key));
-  if (!data.ok) {
-    tagEditorBox.innerHTML = '<div class="empty">' + (data.message || '读取失败') + '</div>';
-    return;
-  }
-  allowedChartTags = data.allowed_tags || allowedChartTags;
-  renderChartTagEditor(data.item);
-}
-
-function renderChartTagEditor(item) {
-  const selected = new Set(item.manual_tags || []);
-  const checks = allowedChartTags.map(tag => '<label class="tag-check"><input type="checkbox" value="' + escapeHtml(tag) + '" ' + (selected.has(tag) ? 'checked' : '') + '><span>' + escapeHtml(tag) + '</span></label>').join('');
-  const evidence = (item.evidence || []).slice(0, 6).map(e => '<li><a href="' + escapeHtml(e.url || '#') + '" target="_blank" rel="noreferrer"></a><p></p></li>').join('');
-  tagEditorBox.innerHTML = '<div class="chart-editor-head"><div><h4></h4><p class="muted"></p></div><span class="badge"></span></div>' +
-    '<div class="tag-meta compact"><p><b>谱师：</b>' + escapeHtml(item.charter || '未知') + '</p><p><b>定数：</b>' + escapeHtml(item.ds ?? '未知') + ' / 拟合 ' + escapeHtml(item.fit_diff ?? '未知') + '</p><p><b>物量：</b>' + escapeHtml(JSON.stringify(item.notes || {})) + '</p><p><b>自动标签：</b>' + escapeHtml(tagText(item.llm_tags)) + '</p><p><b>最终标签：</b>' + escapeHtml(tagText(item.final_tags)) + '</p></div>' +
-    '<div class="tag-check-grid">' + checks + '</div>' +
-    '<div class="row"><button id="saveManualTagsBtn">保存手动标签</button><button id="clearManualTagsBtn" class="ghost">清空手动标签</button></div>' +
-    '<details class="evidence-box"><summary>查看搜索证据</summary><ol>' + evidence + '</ol></details>';
-  tagEditorBox.querySelector('h4').textContent = item.title || item.key;
-  tagEditorBox.querySelector('.chart-editor-head .muted').textContent = item.song_id + ' · ' + item.difficulty + ' · ' + item.level + ' · ' + (item.type || '');
-  tagEditorBox.querySelector('.badge').textContent = item.tag_status || '未处理';
-  tagEditorBox.querySelectorAll('.evidence-box li').forEach((li, idx) => {
-    const e = (item.evidence || [])[idx] || {};
-    li.querySelector('a').textContent = e.title || e.url || '搜索证据';
-    li.querySelector('p').textContent = e.summary || '';
-  });
-  $('saveManualTagsBtn').addEventListener('click', () => withLoading($('saveManualTagsBtn'), saveManualTags));
-  $('clearManualTagsBtn').addEventListener('click', () => withLoading($('clearManualTagsBtn'), clearManualTags));
-}
-
-function selectedManualTags() {
-  return Array.from(tagEditorBox.querySelectorAll('.tag-check input:checked')).map(input => input.value);
-}
-
-async function saveManualTags() {
-  if (!currentChartTagKey) {
-    setTagManageResult(false, '请先选择谱面');
-    return;
-  }
-  const data = await jsonFetch('/api/chart_tags/' + encodeURIComponent(currentChartTagKey), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ manual_tags: selectedManualTags() })
-  });
-  setTagManageResult(Boolean(data.ok), data.message || JSON.stringify(data));
-  if (data.ok) {
-    renderChartTagEditor(data.item);
-    await loadTagsStatus();
-    await searchChartTags();
-  }
-}
-
-async function clearManualTags() {
-  tagEditorBox.querySelectorAll('.tag-check input').forEach(input => input.checked = false);
-  await saveManualTags();
 }
 
 async function loadCommands() {
@@ -665,7 +526,7 @@ async function importJson() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadOverview(), loadCommands(), loadConfig(), loadList(), loadTagsStatus(), loadAutoTagsStatus(), searchChartTags(), searchAutoTags()]);
+  await Promise.all([loadOverview(), loadCommands(), loadConfig(), loadList(), loadAutoTagsStatus(), searchAutoTags()]);
 }
 
 function openPersonaModal() {
@@ -696,13 +557,6 @@ refreshBtn.addEventListener('click', () => withLoading(refreshBtn, async () => {
 }));
 importBtn.addEventListener('click', () => withLoading(importBtn, importJson));
 $('refreshAllBtn').addEventListener('click', () => withLoading($('refreshAllBtn'), refreshAll));
-tagSearchBtn.addEventListener('click', () => withLoading(tagSearchBtn, searchChartTags));
-tagSearchInput.addEventListener('keydown', event => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    withLoading(tagSearchBtn, searchChartTags);
-  }
-});
 $('openAutoDownloadBtn').addEventListener('click', () => openAutoModal(autoDownloadModal));
 $('openAutoAnalyzeBtn').addEventListener('click', () => openAutoModal(autoAnalyzeModal));
 $('closeAutoDownloadBtn').addEventListener('click', () => closeAutoModal(autoDownloadModal));
@@ -749,10 +603,6 @@ modalList.addEventListener('click', event => {
 });
 modal.addEventListener('click', event => {
   if (event.target === modal) closePersonaModal();
-});
-tagResultsBox.addEventListener('click', event => {
-  const target = event.target.closest('.chart-result');
-  if (target && target.dataset.key) loadChartTagDetail(target.dataset.key);
 });
 window.addEventListener('load', async () => {
   await refreshAll();
