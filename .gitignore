@@ -223,9 +223,7 @@ static/webui_config_overrides.json
 static/score_recommend_history.json
 static/disabled_groups.json
 static/group_guess_switch.json
-static/maimaidx_chart_tags_job.json
 static/temp_pie.html
-!static/maimaidx_chart_tags.json
 *.tmp
 
 COMMAND_TEST_REPORT.md
@@ -234,5 +232,7 @@ RELOAD_COMMAND_TEST_REPORT.md
 
 # Local maidata cache
 static/maidata_cache/
+static/Levels/
 static/chart_tag_progress.json
-static/auto_tag_progress.json
+static/chart_tag_dataset.jsonl
+static/chart_tag_audit.json

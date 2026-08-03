@@ -11,9 +11,8 @@ from astrbot.api.event import AstrMessageEvent
 
 from .. import log
 from ..command.mai_base import convert_message_segment_to_chain, extract_at_qqid
-from ..libraries.chart_tags.lookup import chart_key, get_chart_tags, get_chart_tag_scores
+from ..libraries.chart_tags.lookup import analyze_chart_runtime
 from ..libraries.chart_tags.rule_tags import filter_allowed_tags, tag_weight
-from ..libraries.chart_tags.storage import CHART_TAGS_FILE, read_chart_tags
 from ..libraries.maimaidx_api_data import maiApi
 from ..libraries.maimaidx_error import UserDisabledQueryError, UserNotExistsError, UserNotFoundError
 from ..libraries.maimaidx_music import mai
@@ -30,7 +29,6 @@ RECOMMEND_RANDOM_POOL_MAX_SIZE = 10
 RECOMMEND_POOL_WEIGHT_STEP = 0.4
 AVOID_RECOMMEND_POOL_WEIGHT_STEP = 1.0
 _RECOMMEND_SEMAPHORE = asyncio.Semaphore(RECOMMEND_CONCURRENCY_LIMIT)
-_CHART_TAGS_CACHE: tuple[float, dict[str, Any]] | None = None
 
 
 def _sssp_rating(ds: float) -> int:
@@ -150,33 +148,20 @@ def _candidate_rank(candidates: list[dict[str, Any]], candidate: dict[str, Any])
         return 1
 
 
-def _tags_from_data(tags_data: dict[str, Any], song_id: Any, level_index: Any) -> list[str]:
-    from ..libraries.chart_tags.rule_tags import sort_tags_by_weight
-    charts = tags_data.get("charts", {}) if isinstance(tags_data, dict) else {}
-    item = charts.get(chart_key(song_id, level_index), {})
-    tags = item.get("final_tags") or item.get("tags") or item.get("llm_tags") or []
-    if not isinstance(tags, list):
-        return []
-    cleaned = filter_allowed_tags(str(tag) for tag in tags)
-    scores = item.get("tag_scores") if isinstance(item, dict) and isinstance(item.get("tag_scores"), dict) else None
-    return sort_tags_by_weight(cleaned, scores)
+def _runtime_tag_result(song_id: Any, level_index: Any) -> tuple[list[str], dict[str, float]]:
+    item = analyze_chart_runtime(song_id, level_index)
+    tags = filter_allowed_tags(item.get("final_tags") or item.get("model_tags") or [])
+    scores = item.get("tag_scores") if isinstance(item.get("tag_scores"), dict) else {}
+    cleaned_scores: dict[str, float] = {}
+    for tag in tags:
+        try:
+            cleaned_scores[tag] = float(scores.get(tag, tag_weight(tag)))
+        except (TypeError, ValueError):
+            cleaned_scores[tag] = tag_weight(tag)
+    return tags, cleaned_scores
 
 
-def _read_chart_tags_cached() -> dict[str, Any]:
-    global _CHART_TAGS_CACHE
-    try:
-        mtime = CHART_TAGS_FILE.stat().st_mtime
-    except OSError:
-        mtime = 0.0
-    if _CHART_TAGS_CACHE and _CHART_TAGS_CACHE[0] == mtime:
-        return _CHART_TAGS_CACHE[1]
-    tags_data = read_chart_tags()
-    _CHART_TAGS_CACHE = (mtime, tags_data)
-    return tags_data
-
-
-def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5, tags_data: dict[str, Any] | None = None) -> list[str]:
-    tags_data = tags_data if tags_data is not None else _read_chart_tags_cached()
+def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5) -> list[str]:
     weights: dict[str, float] = {}
     for chart in [*b35, *b15]:
         song_id = str(getattr(chart, "song_id", "") or "")
@@ -186,14 +171,9 @@ def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5, tags_data:
             continue
         if not song_id:
             continue
-        item = (tags_data.get("charts", {}) or {}).get(f"{song_id}:{level_index}", {}) if isinstance(tags_data, dict) else {}
-        scores = item.get("tag_scores") if isinstance(item, dict) and isinstance(item.get("tag_scores"), dict) else {}
-        tags = _tags_from_data(tags_data, song_id, level_index)
+        tags, scores = _runtime_tag_result(song_id, level_index)
         for tag in tags:
-            try:
-                score = float(scores.get(tag, tag_weight(tag)))
-            except (TypeError, ValueError):
-                score = tag_weight(tag)
+            score = scores.get(tag, tag_weight(tag))
             weights[tag] = weights.get(tag, 0.0) + max(score, tag_weight(tag))
     return [
         tag
@@ -201,7 +181,7 @@ def _b50_tag_tendency(b35: list[Any], b15: list[Any], limit: int = 5, tags_data:
     ]
 
 
-def _b50_tag_set(b35: list[Any], b15: list[Any], tags_data: dict[str, Any]) -> set[str]:
+def _b50_tag_set(b35: list[Any], b15: list[Any]) -> set[str]:
     result: set[str] = set()
     for chart in [*b35, *b15]:
         song_id = str(getattr(chart, "song_id", "") or "")
@@ -211,15 +191,14 @@ def _b50_tag_set(b35: list[Any], b15: list[Any], tags_data: dict[str, Any]) -> s
             continue
         if not song_id:
             continue
-        result.update(_tags_from_data(tags_data, song_id, level_index))
+        result.update(_runtime_tag_result(song_id, level_index)[0])
     return result
 
 
 def _add_tag_overlap(candidates: list[dict[str, Any]], b35: list[Any], b15: list[Any]) -> list[dict[str, Any]]:
-    tags_data = _read_chart_tags_cached()
-    b50_tags = _b50_tag_set(b35, b15, tags_data)
+    b50_tags = _b50_tag_set(b35, b15)
     for candidate in candidates:
-        tags = _tags_from_data(tags_data, candidate["song_id"], candidate["level_index"])
+        tags = _runtime_tag_result(candidate["song_id"], candidate["level_index"])[0]
         candidate["tags"] = tags
         candidate["tag_overlap"] = len(set(tags) & b50_tags)
     return candidates
@@ -434,7 +413,7 @@ async def _recommend_handler(event: AstrMessageEvent, avoid: bool):
         fit_text = f'{candidate["fit_diff"]:.2f}' if candidate.get("fit_diff") is not None else '未知'
         actual_fit_delta_text = f'{candidate["actual_fit_delta"]:+.2f}' if candidate.get("actual_fit_delta") is not None else '未知'
         fit_actual_delta_text = f'{candidate["fit_actual_delta"]:+.2f}' if candidate.get("fit_actual_delta") is not None else '未知'
-        tags = candidate.get("tags") or await asyncio.to_thread(get_chart_tags, candidate["song_id"], candidate["level_index"])
+        tags = candidate.get("tags") or (await asyncio.to_thread(_runtime_tag_result, candidate["song_id"], candidate["level_index"]))[0]
         tags_text = '、'.join(tags[:6]) if tags else '暂无'
         tendency = await asyncio.to_thread(_b50_tag_tendency, b35, b15)
         tendency_text = '、'.join(tendency) if tendency else '暂无'

@@ -1,57 +1,57 @@
 from __future__ import annotations
 
-"""Validate chart records and train the local classifier used by WebUI auto analysis."""
+"""Train the local chart tag model from the complete audited rule dataset."""
 
 import json
 import time
 from collections import Counter
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from ... import Root
 from .chart_metadata import (
-    REVIEW_FILE,
     DATASET_FILE,
-    MIN_DS,
     PROGRESS_FILE,
     REPORT_FILE,
-    SAMPLE_MANIFEST_FILE,
-    load_codex_records,
+    build_report,
+    load_local_records,
     now,
-    run_codex_annotation,
+    run_full_annotation,
 )
-from .constants import ALLOWED_TAGS
+from .constants import (
+    ALLOWED_TAGS,
+    MAX_TAG_DS,
+    MIN_TAG_DS,
+    RULE_ENGINE,
+    RULE_SPEC_SOURCE,
+    TAG_RULE_VERSION,
+)
 from .storage import write_json_atomic
 
 LOSS_FILE = Root / "static" / "chart_tag_loss.json"
 RUN_FILE = Root / "static" / "chart_tag_training_run.json"
 MODEL_FILE = Root / "static" / "maimai_chart_tag_model.npz"
 MODEL_META_FILE = Root / "static" / "maimai_chart_tag_model.json"
-TRAINING_SEED = 2026080203
-EPOCHS = 240
-LEARNING_RATE = 0.035
+
+TRAINING_SEED = 2026080301
+EPOCHS = 220
+LEARNING_RATE = 0.04
 L2 = 0.0008
-VALIDATION_SIZE = 20
+VALIDATION_FRACTION = 0.20
 PROGRESS_INTERVAL_SECONDS = 300
-
-
-def _write_text_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_name(f".{path.name}.{__import__('os').getpid()}.tmp")
-    temp.write_text(text, encoding="utf-8")
-    temp.replace(path)
+DEPRECATED_TAGS = {"背谱", "手序", "一笔划", "秒划", "拆谱", "拆譜"}
 
 
 def _sigmoid(values: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-np.clip(values, -40.0, 40.0)))
 
 
-def _bce(prediction: np.ndarray, target: np.ndarray) -> float:
+def _weighted_bce(prediction: np.ndarray, target: np.ndarray, positive_weight: np.ndarray) -> float:
     clipped = np.clip(prediction, 1e-7, 1.0 - 1e-7)
-    return float(-np.mean(target * np.log(clipped) + (1.0 - target) * np.log(1.0 - clipped)))
+    weights = np.where(target >= 0.5, positive_weight[None, :], 1.0)
+    loss = -(target * np.log(clipped) + (1.0 - target) * np.log(1.0 - clipped))
+    return float(np.sum(loss * weights) / max(float(weights.sum()), 1.0))
 
 
 def _metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, float]:
@@ -60,7 +60,6 @@ def _metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, float]:
     tp = float(np.logical_and(predicted, truth).sum())
     fp = float(np.logical_and(predicted, ~truth).sum())
     fn = float(np.logical_and(~predicted, truth).sum())
-    tn = float(np.logical_and(~predicted, ~truth).sum())
     precision = tp / max(tp + fp, 1.0)
     recall = tp / max(tp + fn, 1.0)
     return {
@@ -70,13 +69,12 @@ def _metrics(prediction: np.ndarray, target: np.ndarray) -> dict[str, float]:
         "micro_f1": 2.0 * precision * recall / max(precision + recall, 1e-9),
         "positive_cells": float(truth.sum()),
         "predicted_positive_cells": float(predicted.sum()),
-        "true_negative_cells": tn,
     }
 
 
-def validate_records(records: list[dict[str, Any]], expected: int = 100) -> None:
-    if len(records) != expected:
-        raise ValueError(f"训练要求 {expected} 条完整 Codex 记录，当前为 {len(records)}")
+def validate_records(records: list[dict[str, Any]]) -> None:
+    if not records:
+        raise ValueError("训练数据集为空")
     keys: set[str] = set()
     for record in records:
         key = str(record.get("record_key", ""))
@@ -85,51 +83,60 @@ def validate_records(records: list[dict[str, Any]], expected: int = 100) -> None
         keys.add(key)
         source = record.get("source") if isinstance(record.get("source"), dict) else {}
         chart = record.get("chart") if isinstance(record.get("chart"), dict) else {}
-        if record.get("analysis_status") != "completed" or record.get("model_call_status") != "success":
+        collision = record.get("collision") if isinstance(record.get("collision"), dict) else {}
+        if record.get("analysis_status") != "completed":
             raise ValueError(f"记录未完成: {key}")
-        if float(source.get("ds", 0.0) or 0.0) < MIN_DS:
+        ds = float(source.get("ds", 0.0) or 0.0)
+        if not MIN_TAG_DS <= ds <= MAX_TAG_DS:
             raise ValueError(f"记录定数不符合要求: {key}")
-        if not str(chart.get("inote", "")) or not isinstance(chart.get("events"), list):
+        if not str(chart.get("inote", "")).strip() or not isinstance(chart.get("events"), list):
             raise ValueError(f"记录缺少完整谱面内容: {key}")
-        if not isinstance(record.get("raw_tags"), list) or not isinstance(record.get("final_tags"), list):
-            raise ValueError(f"记录缺少原始/最终标签: {key}")
-        if not isinstance(record.get("tag_positions"), dict) or not str(record.get("summary", "")).strip():
-            raise ValueError(f"记录缺少标签位置或摘要: {key}")
-        for tag in [*record["raw_tags"], *record["final_tags"]]:
-            if tag not in ALLOWED_TAGS:
-                raise ValueError(f"记录包含非法标签 {tag}: {key}")
+        if not isinstance(chart.get("bpm_segments"), list) or not isinstance(chart.get("note_counts"), dict):
+            raise ValueError(f"记录缺少 BPM 或物量元数据: {key}")
+        if not isinstance(record.get("two_measure_windows"), list):
+            raise ValueError(f"记录缺少两小节窗口: {key}")
+        if not isinstance(collision.get("candidates"), list) or not isinstance(collision.get("accepted_candidate_ids"), list):
+            raise ValueError(f"记录缺少撞尾审计数据: {key}")
+        for field in ("raw_tags", "difficulty_tags", "final_tags"):
+            if not isinstance(record.get(field), list):
+                raise ValueError(f"记录缺少 {field}: {key}")
+        if not isinstance(record.get("tag_positions"), dict) or not isinstance(record.get("tag_evidence"), dict):
+            raise ValueError(f"记录缺少标签位置: {key}")
+        for tag in [*(record.get("raw_tags") or []), *(record.get("difficulty_tags") or []), *(record.get("final_tags") or [])]:
+            if tag in DEPRECATED_TAGS or tag not in ALLOWED_TAGS:
+                raise ValueError(f"记录包含非法或废弃标签 {tag}: {key}")
 
 
 def _record_features(record: dict[str, Any]) -> dict[str, float]:
-    features: dict[str, float] = {}
-    raw = record.get("features") if isinstance(record.get("features"), dict) else {}
-    for key, value in raw.items():
+    result: dict[str, float] = {}
+    raw_features = record.get("features") if isinstance(record.get("features"), dict) else {}
+    for key, value in raw_features.items():
         if isinstance(value, (int, float)) and np.isfinite(float(value)):
-            features[f"feature.{key}"] = float(value)
+            result[f"feature.{key}"] = float(value)
     source = record.get("source") if isinstance(record.get("source"), dict) else {}
     chart = record.get("chart") if isinstance(record.get("chart"), dict) else {}
     collision = record.get("collision") if isinstance(record.get("collision"), dict) else {}
-    features.update({
+    result.update({
         "context.ds": float(source.get("ds", 0.0) or 0.0),
         "context.bpm": float(source.get("bpm", 0.0) or 0.0),
         "context.whole_bpm": float(source.get("whole_bpm", 0.0) or 0.0),
         "context.level_index": float(source.get("level_index", 0.0) or 0.0),
-        "context.diff_id": float(source.get("difficulty_id", 0.0) or 0.0),
+        "context.diff_id": float(source.get("diff_id", 0.0) or 0.0),
         "context.event_count": float(len(chart.get("events") or [])),
         "context.window_count": float(len(record.get("two_measure_windows") or [])),
         "context.collision_count": float(len(collision.get("candidates") or [])),
         "context.accepted_collision_count": float(len(collision.get("accepted_candidate_ids") or [])),
     })
-    return features
+    return result
 
 
 def _feature_matrix(records: list[dict[str, Any]]) -> tuple[np.ndarray, list[str]]:
-    feature_maps = [_record_features(record) for record in records]
-    names = sorted({name for item in feature_maps for name in item})
+    maps = [_record_features(record) for record in records]
+    names = sorted({name for values in maps for name in values})
     matrix = np.zeros((len(records), len(names)), dtype=np.float64)
     positions = {name: index for index, name in enumerate(names)}
-    for row, item in enumerate(feature_maps):
-        for name, value in item.items():
+    for row, values in enumerate(maps):
+        for name, value in values.items():
             matrix[row, positions[name]] = value
     return matrix, names
 
@@ -141,17 +148,13 @@ def _target_matrix(records: list[dict[str, Any]]) -> np.ndarray:
     )
 
 
-def _write_training_progress(epoch: int, total: int, best_epoch: int, best_loss: float, started: float) -> None:
+def _write_progress(updates: dict[str, Any]) -> None:
     write_json_atomic(PROGRESS_FILE, {
-        "analysis_engine": "codex_conversation_model",
-        "status": "training",
-        "epoch": epoch,
-        "epochs": total,
-        "best_epoch": best_epoch,
-        "best_valid_loss": best_loss,
-        "elapsed_seconds": round(time.monotonic() - started, 3),
-        "updated_at": now(),
+        "analysis_engine": RULE_ENGINE,
+        "task": "training",
         "report_interval_seconds": PROGRESS_INTERVAL_SECONDS,
+        "updated_at": now(),
+        **updates,
     })
 
 
@@ -164,39 +167,49 @@ def train_local_model(records: list[dict[str, Any]]) -> dict[str, Any]:
 
     rng = np.random.default_rng(TRAINING_SEED)
     order = rng.permutation(len(records))
-    valid_size = min(VALIDATION_SIZE, max(1, len(records) // 4))
+    valid_size = max(1, int(round(len(records) * VALIDATION_FRACTION)))
+    if len(records) > 5:
+        valid_size = min(valid_size, len(records) - 1)
     valid_indices = order[:valid_size]
     train_indices = order[valid_size:]
     train_x = matrix[train_indices]
     valid_x = matrix[valid_indices]
     train_y = targets[train_indices]
     valid_y = targets[valid_indices]
+
     mean = train_x.mean(axis=0)
     scale = train_x.std(axis=0)
     scale[scale < 1e-8] = 1.0
     train_x = (train_x - mean) / scale
     valid_x = (valid_x - mean) / scale
 
+    positives = train_y.sum(axis=0)
+    negatives = train_y.shape[0] - positives
+    positive_weight = np.clip((negatives + 1.0) / (positives + 1.0), 1.0, 8.0)
     weights = np.zeros((matrix.shape[1], len(ALLOWED_TAGS)), dtype=np.float64)
-    bias = np.zeros(len(ALLOWED_TAGS), dtype=np.float64)
+    bias = np.log((positives + 0.5) / (negatives + 0.5))
     loss_curve: list[dict[str, Any]] = []
     best_valid_loss = float("inf")
     best_epoch = 0
     best_weights = weights.copy()
     best_bias = bias.copy()
     started = time.monotonic()
+    last_progress = started - PROGRESS_INTERVAL_SECONDS
+
     for epoch in range(1, EPOCHS + 1):
-        train_prediction = _sigmoid(train_x @ weights + bias)
-        error = train_prediction - train_y
-        grad_w = (train_x.T @ error) / max(len(train_x), 1) + L2 * weights
-        grad_b = error.mean(axis=0)
+        prediction = _sigmoid(train_x @ weights + bias)
+        error = prediction - train_y
+        gradient_weight = np.where(train_y >= 0.5, positive_weight[None, :], 1.0)
+        gradient = error * gradient_weight
+        grad_w = (train_x.T @ gradient) / max(float(gradient_weight.sum()), 1.0) + L2 * weights
+        grad_b = gradient.sum(axis=0) / max(float(gradient_weight.sum()), 1.0)
         weights -= LEARNING_RATE * grad_w
         bias -= LEARNING_RATE * grad_b
 
         train_prediction = _sigmoid(train_x @ weights + bias)
         valid_prediction = _sigmoid(valid_x @ weights + bias)
-        train_loss = _bce(train_prediction, train_y) + L2 * float(np.mean(weights * weights)) / 2.0
-        valid_loss = _bce(valid_prediction, valid_y)
+        train_loss = _weighted_bce(train_prediction, train_y, positive_weight) + L2 * float(np.mean(weights * weights)) / 2.0
+        valid_loss = _weighted_bce(valid_prediction, valid_y, positive_weight)
         row = {
             "epoch": epoch,
             "train_loss": round(train_loss, 8),
@@ -210,8 +223,20 @@ def train_local_model(records: list[dict[str, Any]]) -> dict[str, Any]:
             best_epoch = epoch
             best_weights = weights.copy()
             best_bias = bias.copy()
-        if epoch == 1 or epoch == EPOCHS or time.monotonic() - started >= PROGRESS_INTERVAL_SECONDS:
-            _write_training_progress(epoch, EPOCHS, best_epoch, best_valid_loss, started)
+        current = time.monotonic()
+        if epoch == 1 or epoch == EPOCHS or current - last_progress >= PROGRESS_INTERVAL_SECONDS:
+            _write_progress({
+                "status": "training",
+                "epoch": epoch,
+                "epochs": EPOCHS,
+                "records": len(records),
+                "train_records": len(train_indices),
+                "valid_records": len(valid_indices),
+                "best_epoch": best_epoch,
+                "best_valid_loss": round(best_valid_loss, 8),
+                "elapsed_seconds": round(current - started, 3),
+            })
+            last_progress = current
 
     np.savez_compressed(
         MODEL_FILE,
@@ -223,8 +248,10 @@ def train_local_model(records: list[dict[str, Any]]) -> dict[str, Any]:
         label_names=np.asarray(ALLOWED_TAGS),
     )
     loss_data = {
-        "version": 1,
-        "analysis_engine": "codex_conversation_model",
+        "version": 2,
+        "analysis_engine": RULE_ENGINE,
+        "rule_spec_source": RULE_SPEC_SOURCE,
+        "rule_version": TAG_RULE_VERSION,
         "seed": TRAINING_SEED,
         "epochs": EPOCHS,
         "learning_rate": LEARNING_RATE,
@@ -233,6 +260,7 @@ def train_local_model(records: list[dict[str, Any]]) -> dict[str, Any]:
         "valid_records": len(valid_indices),
         "feature_count": len(feature_names),
         "labels": ALLOWED_TAGS,
+        "positive_counts": {tag: int(value) for tag, value in zip(ALLOWED_TAGS, targets.sum(axis=0))},
         "best_epoch": best_epoch,
         "best_valid_loss": round(best_valid_loss, 8),
         "curve": loss_curve,
@@ -240,12 +268,12 @@ def train_local_model(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
     write_json_atomic(LOSS_FILE, loss_data)
     metadata = {
-        "version": 1,
+        "version": 2,
         "model_type": "multilabel_logistic_regression",
-        "analysis_engine": "codex_conversation_model",
-        "call_mode": "in_conversation",
+        "analysis_engine": RULE_ENGINE,
+        "rule_spec_source": RULE_SPEC_SOURCE,
+        "rule_version": TAG_RULE_VERSION,
         "dataset": str(DATASET_FILE.relative_to(Root)),
-        "sample_manifest": str(SAMPLE_MANIFEST_FILE.relative_to(Root)),
         "records": len(records),
         "train_records": len(train_indices),
         "valid_records": len(valid_indices),
@@ -256,20 +284,10 @@ def train_local_model(records: list[dict[str, Any]]) -> dict[str, Any]:
         "best_valid_loss": round(best_valid_loss, 8),
         "loss_file": str(LOSS_FILE.relative_to(Root)),
         "model_file": str(MODEL_FILE.relative_to(Root)),
-        "formal_pipeline_enabled": True,
-        "review_status": "available_for_webui_auto_analysis",
         "created_at": now(),
     }
     write_json_atomic(MODEL_META_FILE, metadata)
-    write_json_atomic(RUN_FILE, {
-        "status": "completed",
-        "analysis_engine": "codex_conversation_model",
-        "dataset_records": len(records),
-        "best_epoch": best_epoch,
-        "best_valid_loss": round(best_valid_loss, 8),
-        "updated_at": now(),
-    })
-    return {
+    result = {
         "ok": True,
         "records": len(records),
         "train_records": len(train_indices),
@@ -281,98 +299,63 @@ def train_local_model(records: list[dict[str, Any]]) -> dict[str, Any]:
         "model_file": str(MODEL_FILE.relative_to(Root)),
         "model_meta": str(MODEL_META_FILE.relative_to(Root)),
     }
+    write_json_atomic(RUN_FILE, {
+        "version": 2,
+        "status": "completed",
+        "analysis_engine": RULE_ENGINE,
+        "rule_version": TAG_RULE_VERSION,
+        "dataset": str(DATASET_FILE.relative_to(Root)),
+        "dataset_records": len(records),
+        "best_epoch": best_epoch,
+        "best_valid_loss": round(best_valid_loss, 8),
+        "updated_at": now(),
+    })
+    _write_progress({
+        "status": "training_completed",
+        "epoch": EPOCHS,
+        "epochs": EPOCHS,
+        "records": len(records),
+        "best_epoch": best_epoch,
+        "best_valid_loss": round(best_valid_loss, 8),
+        "finished_at": now(),
+    })
+    return result
 
 
 def _usage(records: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
     counter = Counter(tag for record in records for tag in (record.get(field) or []))
     total = max(len(records), 1)
     return [
-        {"tag": tag, "count": int(counter.get(tag, 0)), "rate": round(counter.get(tag, 0) / total, 4)}
+        {"tag": tag, "count": int(counter.get(tag, 0)), "rate": round(counter.get(tag, 0) / total, 6)}
         for tag in ALLOWED_TAGS
     ]
 
 
-def build_report(records: list[dict[str, Any]], model: dict[str, Any]) -> str:
-    validate_records(records)
-    manifest = json.loads(SAMPLE_MANIFEST_FILE.read_text(encoding="utf-8"))
-    raw_usage = _usage(records, "raw_tags")
-    final_usage = _usage(records, "final_tags")
-    lines = [
-        "# Codex 谱面元数据与本地模型报告",
-        "",
-        f"- 生成时间：{now()}",
-        "- 分析引擎：`codex_conversation_model`（对话内完成；未调用 AstrBot 谱面分析接口）",
-        f"- 随机种子：`{manifest.get('random_seed')}`；候选有效难度：{manifest.get('eligible_pool_count')}；强制重算：是",
-        f"- 样本：{len(records)} / {manifest.get('sample_size_requested')}；完整标注成功：{sum(item.get('model_call_status') == 'success' for item in records)}",
-        f"- 数据集：`{DATASET_FILE.relative_to(Root)}`；每条记录含完整 `inote`、事件、BPM 段、窗口、候选和标签位置",
-        "- 本地模型可由 WebUI 自动打标任务使用；任务执行后将模型结果写入正式标签文件的 `model_tags` 和 `final_tags`",
-        "",
-        "## 撞尾依据",
-        "",
-        "- 参考资料：" + "、".join(f"[{index}]({url})" for index, url in enumerate(manifest.get("reference_sources", []), start=1)),
-        f"- 候选窗口：Slide 进入路径区域前 {abs(-0.05):.2f}s 至进入后 {0.20:.2f}s；`delta=0` 为绝对撞尾，正向至 {0.15:.2f}s 为硬撞尾，两侧边缘为软撞尾；最后 A 区延伸到 Slide 结束并保留后 {0.20:.2f}s。",
-        "- 目标原始语法含 `x` 的 Ex 音符被单独记录并排除；孤立软边界不直接成为标签，重复或硬冲突才进入 Codex 复核证据。",
-        "",
-        "## 标签使用率",
-        "",
-        "| 标签 | 原始次数 | 原始使用率 | 最终次数 | 最终使用率 |",
-        "|:--|--:|--:|--:|--:|",
-    ]
-    final_by_tag = {row["tag"]: row for row in final_usage}
-    for row in raw_usage:
-        final = final_by_tag[row["tag"]]
-        lines.append(f"| {row['tag']} | {row['count']} | {row['rate']:.1%} | {final['count']} | {final['rate']:.1%} |")
-    lines.extend([
-        "",
-        "## 逐谱面标注",
-        "",
-        "| # | Key | 定数 | BPM | 原始标签 | 最终标签 | 撞尾证据 | 状态 |",
-        "|--:|:--|--:|--:|:--|:--|--:|:--|",
-    ])
-    for index, record in enumerate(records, start=1):
-        source = record["source"]
-        collision_count = len((record.get("collision") or {}).get("accepted_candidate_ids") or [])
-        lines.append(
-            f"| {index} | `{record['record_key']}` {source.get('title', '')} {source.get('difficulty', '')} | "
-            f"{float(source.get('ds', 0.0)):.1f} | {float(source.get('bpm', 0.0)):.1f} | "
-            f"{'、'.join(record.get('raw_tags') or []) or '无'} | {'、'.join(record.get('final_tags') or []) or '无'} | "
-            f"{collision_count} | {record.get('analysis_status')} |")
-    lines.extend([
-        "",
-        "## 训练结果",
-        "",
-        f"- 模型：`{model['model_file']}`；元数据：`{model['model_meta']}`；Loss 曲线：`{model['loss_file']}`。",
-        f"- 训练/验证：{model.get('train_records', '-')} / {model.get('valid_records', '-')}；特征数：{model.get('feature_count', '-')}；最佳 epoch：{model.get('best_epoch', '-')}；最佳验证 Loss：{model.get('best_valid_loss', '-')}",
-        "- 训练目标是多标签分类；训练集只接收 100 条完整、成功、定数不低于 12.6 的记录，不把缺失结果当作否定标签。",
-        "- Loss 文件按 epoch 保存训练/验证 Loss 和微平均指标，可直接绘制曲线；正式标签文件只在管理员从 WebUI 启动分析后更新。",
-        "",
-        "## 文件清单",
-        "",
-        f"- 样本清单：`{SAMPLE_MANIFEST_FILE.relative_to(Root)}`",
-        f"- 进度：`{PROGRESS_FILE.relative_to(Root)}`",
-        f"- Codex 审阅清单：`{REVIEW_FILE.relative_to(Root)}`（正式标签库不写入审阅结果）",
-        "- 正式标签库：`static/maimaidx_chart_tags.json`（由 WebUI 自动分析任务按映射条目更新）",
-    ])
-    return "\n".join(lines) + "\n"
-
-
-def run_full_pipeline() -> dict[str, Any]:
-    annotation = run_codex_annotation()
-    records = load_codex_records()
-    model = train_local_model(records)
-    report = build_report(records, model)
-    _write_text_atomic(REPORT_FILE, report)
-    write_json_atomic(PROGRESS_FILE, {
-        "analysis_engine": "codex_conversation_model",
+def run_full_pipeline(directory: str = "static/Levels") -> dict[str, Any]:
+    annotation = run_full_annotation(directory)
+    records = load_local_records()
+    training = train_local_model(records)
+    report = build_report(records, training)
+    REPORT_FILE.write_text(report, encoding="utf-8")
+    run = {
+        "annotation": annotation,
+        "training": training,
+        "records": len(records),
+        "raw_usage": _usage(records, "raw_tags"),
+        "final_usage": _usage(records, "final_tags"),
+        "report": str(REPORT_FILE.relative_to(Root)),
+    }
+    write_json_atomic(RUN_FILE, {**json.loads(RUN_FILE.read_text(encoding="utf-8")), "report": run["report"], "updated_at": now()})
+    _write_progress({
         "status": "completed",
+        "task": "pipeline",
         "processed": len(records),
         "total": len(records),
-        "training_best_epoch": model["best_epoch"],
-        "training_best_valid_loss": model["best_valid_loss"],
-        "updated_at": now(),
-        "report_interval_seconds": PROGRESS_INTERVAL_SECONDS,
+        "training_best_epoch": training["best_epoch"],
+        "training_best_valid_loss": training["best_valid_loss"],
+        "finished_at": now(),
     })
-    return {"annotation": annotation, "training": model, "report": str(REPORT_FILE.relative_to(Root))}
+    return run
 
 
 def main() -> None:

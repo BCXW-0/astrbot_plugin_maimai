@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import threading
@@ -9,7 +10,6 @@ from typing import Any
 from ... import static
 
 TAGS_DIR = static
-CHART_TAGS_FILE = TAGS_DIR / "maimaidx_chart_tags.json"
 _JSON_LOCK = threading.RLock()
 
 
@@ -26,11 +26,10 @@ def write_json_atomic(path: Path, data: dict[str, Any]) -> None:
         temp_path.replace(path)
 
 
-def read_chart_tags() -> dict[str, Any]:
-    if not CHART_TAGS_FILE.exists():
-        return {}
-    try:
-        with _JSON_LOCK:
-            return json.loads(CHART_TAGS_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+def write_json_gzip_atomic(path: Path, data: dict[str, Any]) -> None:
+    ensure_tags_dir()
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    with _JSON_LOCK:
+        with gzip.open(temp_path, "wt", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+        temp_path.replace(path)

@@ -16,6 +16,7 @@
       <button class="nav active" data-tab="overview">总览</button>
       <button class="nav" data-tab="persona">锐评人格</button>
       <button class="nav" data-tab="tags">谱面标签</button>
+      <button class="nav" data-tab="logs">插件日志</button>
       <button class="nav" data-tab="config">配置管理</button>
       <button class="nav" data-tab="commands">命令说明</button>
     </nav>
@@ -88,6 +89,13 @@
         <h3>本地模型详情</h3>
         <div id="autoTagDetailBox" class="empty">先从右侧选择一个谱面</div>
       </article>
+    </section>
+    <section id="logs" class="tab-panel">
+      <div class="card logs-panel">
+        <div class="card-head"><div><h3>插件日志</h3><p class="muted">仅显示本插件运行日志</p></div><div class="row"><button id="refreshLogsBtn" class="secondary small-btn">刷新</button><button id="clearLogsBtn" class="danger small-btn">清空</button></div></div>
+        <div class="logs-toolbar"><select id="logLevel"><option value="">全部级别</option><option value="DEBUG">DEBUG</option><option value="INFO">INFO</option><option value="WARNING">WARNING</option><option value="ERROR">ERROR</option><option value="CRITICAL">CRITICAL</option></select><input id="logQuery" placeholder="搜索日志内容、模块或来源"><label class="switch"><input id="logAutoRefresh" type="checkbox" checked><span></span><em>自动刷新</em></label></div>
+        <div id="logsBox" class="logs-box"><div class="empty">正在读取插件日志...</div></div>
+      </div>
     </section>
     <section id="config" class="tab-panel">
       <div class="card">

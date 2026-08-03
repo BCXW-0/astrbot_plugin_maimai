@@ -1,1029 +1,835 @@
 from __future__ import annotations
 
-"""从解析后的谱面事件提取结构特征，并映射为加权标签。
+"""Deterministic chart tagging rules defined by the supplied maimai.xls.
 
-圈内定义（v13 玩家校准）：
-- 短时高密：连续 ≥2 小节（按时值=2*4拍/BPM）内，某类配置占比达标
-  · 双押：同时击 onset 占比 ≥75%
-  · Hold 高密：hold 相关占比 ≥50%（管子密度支路）
-- 管子：hold（非滑键）。短 hold 局部过密 / hold 链间隙极短 /
-  hold 长度或间隔不稳定（节奏型怪异）
-- 双押：一组=同一时刻两键；配置=上述两小节窗口内双押主导
-- 定位：短时高密大位移卡手；快速大跨度 slide 卡手也归定位
-- 留尾：slide 出张大（跨度大），不再用 hold 重叠定义
-- 死镰：Death Scythe 经典——连 Tap（含星头，常 3~4 个相邻键）同时处理
-  对向 slide，且 slide 启动方向与 tap 迭代方向相反
-- 如龙：双押（或隔半拍）引导换手的同侧扫（如 id270 / Regulus）
-- 协调（原拆谱）：难协调键型、短纵(2/3)、大位移交互等
-- 交互：普通快速交替；另分出 轴交互 / 爬梯交互
-- 跳拍：swing/shuffle 与连续附点，而非泛化“不齐”
+The module has two deliberately separate layers:
+
+* ``extract_features`` returns numeric evidence for the local classifier.
+* ``analyze_chart_tags`` applies the XLS candidate/difficulty definitions and
+  returns auditable spans for the metadata dataset.
+
+All local density decisions use a BPM-aware two-measure window.  No network
+source or AstrBot model is consulted here.
 """
-
 
 import math
 import statistics
-from collections import Counter, defaultdict
+from bisect import bisect_right
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ..constants import GENERIC_TAGS, TAG_WEIGHTS
-from ..rule_tags import select_final_tags, tag_weight
-from .maidata_parser import MaidataChart, NoteEvent, parse_maidata
+from ..constants import DIFFICULTY_CAPS, GENERIC_TAGS, TAG_WEIGHTS
+from ..rule_tags import filter_allowed_tags, tag_weight
+from .maidata_parser import MaidataChart, NoteEvent
 
 
-def _button_dist(a: str, b: str) -> int:
+def _button(value: Any) -> int | None:
     try:
-        x, y = int(a), int(b)
-    except Exception:
-        return 0
-    d = abs(x - y) % 8
-    return min(d, 8 - d)
+        number = int(str(value))
+    except (TypeError, ValueError):
+        return None
+    return number if 1 <= number <= 8 else None
 
 
-def _button_dir(a: str, b: str) -> int:
-    """+1 = 顺时针(编号增大方向的最短? 用环形步进符号), -1 反向, 0 相同/对侧。"""
-    try:
-        x, y = int(a), int(b)
-    except Exception:
+def _ring_distance(left: Any, right: Any) -> int:
+    a, b = _button(left), _button(right)
+    if a is None or b is None:
         return 0
-    if x == y:
+    distance = abs(a - b) % 8
+    return min(distance, 8 - distance)
+
+
+def _ring_direction(left: Any, right: Any) -> int:
+    a, b = _button(left), _button(right)
+    if a is None or b is None or a == b:
         return 0
-    cw = (y - x) % 8
-    ccw = (x - y) % 8
-    if cw == 0 or ccw == 0:
-        return 0
-    if cw < ccw:
+    clockwise = (b - a) % 8
+    counter_clockwise = (a - b) % 8
+    if clockwise < counter_clockwise:
         return 1
-    if ccw < cw:
+    if counter_clockwise < clockwise:
         return -1
-    return 0  # 对侧
+    return 0
 
 
-def _hit_buttons(group: list[NoteEvent]) -> list[str]:
-    hit: list[str] = []
-    for e in group:
-        if e.kind not in {"tap", "break", "hold"}:
-            continue
-        for b in e.buttons:
-            if str(b).isdigit():
-                hit.append(str(b))
-    return hit
+def _event_buttons(event: NoteEvent) -> list[int]:
+    return [number for number in (_button(value) for value in event.buttons) if number is not None]
 
 
-def _is_multi_group(group: list[NoteEvent]) -> bool:
-    return len(set(_hit_buttons(group))) >= 2
+def _is_tap(event: NoteEvent) -> bool:
+    return event.kind in {"tap", "break"} and bool(_event_buttons(event))
 
 
-def _measure_sec(bpm: float) -> float:
-    # 4/4 一小节 = 4 拍
+def _measure_seconds(bpm: float) -> float:
     return 240.0 / max(float(bpm or 120.0), 1.0)
 
 
-def _slide_span(e: NoteEvent) -> int:
-    buttons = [str(b) for b in e.buttons if str(b).isdigit()]
-    if len(buttons) >= 2:
-        # 路径累计跨度（多点）与起终点跨度取大
-        path = 0
-        for i in range(1, len(buttons)):
-            path += _button_dist(buttons[i - 1], buttons[i])
-        ends = _button_dist(buttons[0], buttons[-1])
-        return max(path, ends)
-    return 0
+def _cv(values: list[float]) -> float:
+    if len(values) < 3:
+        return 0.0
+    average = statistics.mean(values)
+    return statistics.pstdev(values) / average if average > 1e-9 else 0.0
 
 
-def _slide_dir(e: NoteEvent) -> int:
-    buttons = [str(b) for b in e.buttons if str(b).isdigit()]
-    if len(buttons) >= 2:
-        return _button_dir(buttons[0], buttons[1] if len(buttons) > 1 else buttons[-1])
-    shape = e.shape or ""
-    # 粗略：> 常作某一向，< 反向；不足则 0
-    if ">" in shape or "p" in shape.lower():
-        return 1
-    if "<" in shape or "q" in shape.lower():
-        return -1
-    return 0
+def _side(number: int) -> int:
+    # XLS convention: 5-8 are the left hand zone, 1-4 the right hand zone.
+    return -1 if number in {5, 6, 7, 8} else 1
 
 
-def _windowed_ratio_runs(
-    times_a: list[float],
-    times_all: list[float],
-    *,
-    window: float,
-    step: float,
-    min_ratio: float,
-    min_all: int = 6,
-) -> tuple[float, float, int]:
-    """返回 (最长连续达标时长, 达标窗口峰值占比, 达标窗口数)。"""
-    if not times_all or window <= 0:
-        return 0.0, 0.0, 0
-    t0 = times_all[0]
-    t1 = times_all[-1]
-    cur = t0
-    flags: list[tuple[float, bool, float]] = []
-    peak = 0.0
-    while cur <= t1 + 1e-9:
-        all_n = sum(1 for t in times_all if cur <= t < cur + window)
-        a_n = sum(1 for t in times_a if cur <= t < cur + window)
-        ratio = a_n / max(all_n, 1)
-        ok = all_n >= min_all and ratio >= min_ratio
-        flags.append((cur, ok, ratio))
-        if ok:
-            peak = max(peak, ratio)
-        cur += step
-
-    best = 0.0
-    run = 0.0
-    hot = 0
-    for i, (t, ok, _) in enumerate(flags):
-        if ok:
-            hot += 1
-            run += step
-            # 加上窗口本体超出 step 的部分：用 window 估计连续覆盖
-            best = max(best, run + max(0.0, window - step))
-        else:
-            run = 0.0
-    return best, peak, hot
+def _event_zone_crossing(event: NoteEvent) -> int:
+    numbers = _event_buttons(event)
+    if len(numbers) < 2:
+        return 0
+    start_side = _side(numbers[0])
+    return int(any(_side(number) != start_side for number in numbers[1:]))
 
 
-def extract_features(chart: MaidataChart) -> dict[str, float]:
-    events = [e for e in chart.events if e.kind != ""]
-    if not events:
-        return {"empty": 1.0}
+def _group_events(chart: MaidataChart) -> list[dict[str, Any]]:
+    groups: dict[int, list[tuple[int, NoteEvent]]] = defaultdict(list)
+    for index, event in enumerate(sorted(chart.events, key=lambda item: item.time)):
+        groups[round(float(event.time) * 1000)].append((index, event))
+    result: list[dict[str, Any]] = []
+    for stamp, indexed in sorted(groups.items()):
+        events = [event for _, event in indexed]
+        buttons = sorted({number for event in events for number in _event_buttons(event)})
+        result.append({
+            "time": stamp / 1000.0,
+            "events": events,
+            "indexes": [index for index, _ in indexed],
+            "buttons": buttons,
+            "multi": int(len(buttons) >= 2),
+            "hold": int(any(event.kind == "hold" for event in events)),
+            "slide": int(any(event.kind == "slide" for event in events)),
+            "zone_cross": sum(_event_zone_crossing(event) for event in events),
+        })
+    return result
 
-    taps = [e for e in events if e.kind in {"tap", "break"}]
-    holds = [e for e in events if e.kind == "hold"]
-    slides = [e for e in events if e.kind == "slide"]
-    touches = [e for e in events if e.kind == "touch"]
-    total = max(len(events), 1)
-    duration = max(events[-1].time - events[0].time, 0.01)
-    bpm = float(chart.bpm or 0.0) or 120.0
-    measure = _measure_sec(bpm)
-    two_meas = 2.0 * measure
-    beat = 60.0 / bpm
 
-    # onset buckets
-    buckets: dict[int, list[NoteEvent]] = defaultdict(list)
-    for e in events:
-        buckets[int(round(e.time * 1000))].append(e)
+def _sequence_text(groups: list[dict[str, Any]], start: float) -> str:
+    tokens: list[str] = []
+    bpm = float(groups[0]["events"][0].bpm or 120.0) if groups else 120.0
+    for group in groups:
+        beat = (float(group["time"]) - start) * bpm / 60.0
+        raw = "/".join(event.raw for event in group["events"] if event.raw)
+        tokens.append(f"{beat:.3f}:{raw}")
+    return "; ".join(tokens)[:1600]
 
-    multi_times: list[float] = []
-    onset_times: list[float] = []
-    hold_onset_times: list[float] = []
-    for ts, g in sorted(buckets.items()):
-        t = ts / 1000.0
-        buttons = _hit_buttons(g)
-        if buttons:
-            onset_times.append(t)
-        if _is_multi_group(g):
-            multi_times.append(t)
-        if any(e.kind == "hold" for e in g):
-            hold_onset_times.append(t)
 
-    multi_ratio_global = len(multi_times) / max(len(onset_times), 1)
+def _window_stats(chart: MaidataChart) -> tuple[list[dict[str, Any]], dict[str, float]]:
+    groups = _group_events(chart)
+    if not groups:
+        return [], {"two_measure_sec": 0.0}
+    times = [float(group["time"]) for group in groups]
+    prefixes: dict[str, list[int]] = {}
+    for key in ("multi", "hold", "slide", "zone_cross"):
+        values = [int(group[key]) for group in groups]
+        prefix = [0]
+        for value in values:
+            prefix.append(prefix[-1] + value)
+        prefixes[key] = prefix
 
-    # ===== 两小节密度：双押≥75%，hold≥50% =====
-    dual_run, dual_peak, dual_hot = _windowed_ratio_runs(
-        multi_times, onset_times, window=two_meas, step=max(beat / 2, 0.05), min_ratio=0.75, min_all=8
-    )
-    hold_run, hold_peak, hold_hot = _windowed_ratio_runs(
-        hold_onset_times, onset_times, window=two_meas, step=max(beat / 2, 0.05), min_ratio=0.50, min_all=16
-    )
+    windows: list[dict[str, Any]] = []
+    best_dual: list[dict[str, Any]] = []
+    best_hold: list[dict[str, Any]] = []
+    for left, group in enumerate(groups):
+        bpm = float(group["events"][0].bpm or chart.bpm or 120.0)
+        duration = 2.0 * _measure_seconds(bpm)
+        right = bisect_right(times, times[left] + duration - 1e-9)
+        count = max(right - left, 1)
+        multi = prefixes["multi"][right] - prefixes["multi"][left]
+        hold = prefixes["hold"][right] - prefixes["hold"][left]
+        slides = prefixes["slide"][right] - prefixes["slide"][left]
+        zone_cross = prefixes["zone_cross"][right] - prefixes["zone_cross"][left]
+        density = sum(len(item["events"]) for item in groups[left:right]) / max(duration, 1e-6)
+        entry = {
+            "start": round(times[left], 6),
+            "end": round(times[left] + duration, 6),
+            "bpm": round(bpm, 3),
+            "duration": round(duration, 6),
+            "event_indexes": [index for item in groups[left:right] for index in item["indexes"]],
+            "onset_count": count,
+            "event_count": sum(len(item["events"]) for item in groups[left:right]),
+            "multi_ratio": multi / count,
+            "hold_ratio": hold / count,
+            "slide_ratio": slides / count,
+            "zone_cross": zone_cross,
+            "density": density,
+            "sequence": _sequence_text(groups[left:right], times[left]),
+        }
+        if count >= 4:
+            windows.append(entry)
+            if entry["multi_ratio"] >= 0.75:
+                best_dual.append(entry)
+            if entry["hold_ratio"] >= 0.50:
+                best_hold.append(entry)
 
-    # multi absolute nonoverlap 1s (辅助)
-    t0, t1 = events[0].time, events[-1].time
-    multi_counts = []
-    cur = t0
-    while cur <= t1 + 1e-9:
-        multi_counts.append(sum(1 for t in multi_times if cur <= t < cur + 1.0))
-        cur += 1.0
-    multi_abs_peak = float(max(multi_counts) if multi_counts else 0)
-    multi_hot4 = float(sum(1 for c in multi_counts if c >= 4))
-    multi_chain = 1
-    multi_chain_max = 1
-    for i in range(1, len(multi_times)):
-        if multi_times[i] - multi_times[i - 1] <= 0.28:
-            multi_chain += 1
-            multi_chain_max = max(multi_chain_max, multi_chain)
-        else:
-            multi_chain = 1
-
-    # ===== holds / 管子 =====
-    short_holds = [e for e in holds if 0 < e.duration <= 0.40]
-    very_short_holds = [e for e in holds if 0 < e.duration <= 0.22]
-    hold_gap_min = 999.0
-    hold_gap_short = 0
-    hold_chain_max = 1
-    hold_chain_span_max = 0.0
-    hold_gaps: list[float] = []
-    hold_lens = [float(e.duration) for e in holds if e.duration > 0]
-    if len(holds) >= 2:
-        ordered = sorted(holds, key=lambda e: e.time)
-        chain = 1
-        chain_start = ordered[0].time
-        chain_end = ordered[0].time + max(ordered[0].duration, 0.0)
-        for i in range(1, len(ordered)):
-            prev, cur_h = ordered[i - 1], ordered[i]
-            gap = cur_h.time - (prev.time + max(prev.duration, 0.0))
-            hold_gaps.append(gap)
-            hold_gap_min = min(hold_gap_min, gap)
-            if gap <= 0.18:
-                hold_gap_short += 1
-                chain += 1
-                hold_chain_max = max(hold_chain_max, chain)
-                chain_end = max(chain_end, cur_h.time + max(cur_h.duration, 0.0))
-                hold_chain_span_max = max(hold_chain_span_max, chain_end - chain_start)
+    def _span(items: list[dict[str, Any]]) -> float:
+        if not items:
+            return 0.0
+        ordered = sorted(items, key=lambda item: item["start"])
+        best = current = ordered[0]["duration"]
+        previous_end = ordered[0]["end"]
+        for item in ordered[1:]:
+            if item["start"] <= previous_end + 1e-6:
+                current = max(current, item["end"] - ordered[0]["start"])
+                previous_end = max(previous_end, item["end"])
             else:
-                chain = 1
-                chain_start = cur_h.time
-                chain_end = cur_h.time + max(cur_h.duration, 0.0)
-        hold_chain_span_max = max(hold_chain_span_max, chain_end - chain_start)
-    # 节奏型怪异：长度 CV 或 gap CV 高
-    def _cv(xs: list[float]) -> float:
-        if len(xs) < 4:
-            return 0.0
-        m = statistics.mean(xs)
-        if m <= 1e-6:
-            return 0.0
-        return statistics.pstdev(xs) / m
+                current = item["duration"]
+                previous_end = item["end"]
+            best = max(best, current)
+        return best
 
-    hold_len_cv = _cv(hold_lens)
-    hold_gap_cv = _cv([g for g in hold_gaps if g < 2.0])  # 忽略很长空白
-    # A global length/gap CV is not enough: ordinary Hold usage often has the
-    # same statistics.  Keep it as evidence only when one local chain spans
-    # most of two measures.
-    hold_weird = 1.0 if (
-        len(holds) >= 8
-        and hold_chain_span_max >= two_meas * 0.75
-        and (hold_len_cv >= 0.55 or hold_gap_cv >= 0.65)
-        and hold_gap_short >= 3
-    ) else 0.0
+    summary = {
+        "two_measure_sec": 2.0 * _measure_seconds(float(chart.bpm or 120.0)),
+        "window_count": float(len(windows)),
+        "dual_window_count": float(len(best_dual)),
+        "dual_dense_run": float(_span(best_dual)),
+        "dual_dense_peak": float(max((item["multi_ratio"] for item in best_dual), default=0.0)),
+        "hold_window_count": float(len(best_hold)),
+        "hold_dense_run": float(_span(best_hold)),
+        "hold_dense_peak": float(max((item["hold_ratio"] for item in best_hold), default=0.0)),
+        "window_density_peak": float(max((item["density"] for item in windows), default=0.0)),
+        "window_zone_cross_peak": float(max((item["zone_cross"] for item in windows), default=0.0)),
+    }
+    return windows, summary
 
-    # 细窗口 short-hold 局部
-    hold_local_peak = 0.0
-    hold_hot_windows = 0
-    cur = t0
-    while cur <= t1 + 1e-9:
-        bucket = [e for e in events if cur <= e.time < cur + 1.0]
-        if bucket:
-            sh = sum(1 for e in bucket if e.kind == "hold" and 0 < e.duration <= 0.40)
-            ratio = sh / max(len(bucket), 1)
-            hold_local_peak = max(hold_local_peak, ratio)
-            if ratio >= 0.22 and sh >= 3:
-                hold_hot_windows += 1
-        cur += 0.25
 
-    # ===== single taps sequence =====
-    single_taps: list[tuple[float, str]] = []
-    for e in events:
-        if e.kind in {"tap", "break"} and len(e.buttons) == 1 and str(e.buttons[0]).isdigit():
-            single_taps.append((e.time, str(e.buttons[0])))
-        elif e.kind == "slide" and e.buttons and str(e.buttons[0]).isdigit():
-            # 星头可参与死镰 tap 链
-            single_taps.append((e.time, str(e.buttons[0])))
+def _tap_sequence(chart: MaidataChart) -> list[tuple[float, int, int]]:
+    sequence: list[tuple[float, int, int]] = []
+    for group in _group_events(chart):
+        taps = [event for event in group["events"] if _is_tap(event)]
+        for event in taps:
+            for number in _event_buttons(event):
+                sequence.append((float(group["time"]), number, len(taps)))
+    return sorted(sequence)
 
-    # 去重同刻同键
-    single_taps = sorted(set(single_taps), key=lambda x: (x[0], x[1]))
-    # Structural interaction labels must not be inferred from Slide heads.
-    # Star heads remain in single_taps for the Death Scythe detector only.
-    pattern_taps = sorted({
-        (e.time, str(e.buttons[0]))
-        for e in events
-        if e.kind in {"tap", "break"}
-        and len(e.buttons) == 1
-        and str(e.buttons[0]).isdigit()
-    }, key=lambda x: (x[0], x[1]))
 
-    trill = stack = jump = 0
-    short_stack_runs = 0  # 短纵 2/3
-    short_stack_points: list[tuple[float, str]] = []
-    i = 0
-    while i < len(pattern_taps):
-        # stacks of same button
-        j = i + 1
-        while j < len(pattern_taps) and pattern_taps[j][1] == pattern_taps[i][1] and pattern_taps[j][0] - pattern_taps[j - 1][0] <= beat * 0.6:
-            j += 1
-        run_len = j - i
-        if run_len >= 2:
-            stack += run_len - 1
-            # 短纵：长度 2 或 3，间隔通常快于 16 分（16分间隔=beat/4）
-            dts = [pattern_taps[k][0] - pattern_taps[k - 1][0] for k in range(i + 1, j)]
-            if run_len in {2, 3} and dts and statistics.mean(dts) <= (beat / 4) * 1.15:
-                short_stack_runs += 1
-                short_stack_points.append(pattern_taps[i])
-        i = max(j, i + 1)
-
-    short_stack_hot = max(
-        (
-            sum(1 for value, _ in short_stack_points if start <= value < start + two_meas)
-            for start, _ in short_stack_points
-        ),
-        default=0,
-    )
-    short_stack_distinct_hot = max(
-        (
-            len({button for value, button in short_stack_points if start <= value < start + two_meas})
-            for start, _ in short_stack_points
-        ),
-        default=0,
-    )
-
-    for k in range(1, len(pattern_taps)):
-        tprev, b0 = pattern_taps[k - 1]
-        t1_, b1 = pattern_taps[k]
-        dt = t1_ - tprev
-        if dt <= 0 or dt > 0.35:
-            continue
-        dist = _button_dist(b0, b1)
-        if dist == 1:
-            if k >= 2 and pattern_taps[k - 2][1] == b1 and b0 != b1:
-                trill += 1
-        elif dist >= 3:
-            jump += 1
-
-    # sweep run
-    run = 1
+def _sweep_features(sequence: list[tuple[float, int, int]], beat: float) -> dict[str, float]:
+    if len(sequence) < 2:
+        return {"sweep_max": 0.0, "short_sweep_hits": 0.0, "circle_hits": 0.0, "sweep_mixed_hits": 0.0}
     max_run = 1
+    current = 1
     direction = 0
-    for k in range(1, len(pattern_taps)):
-        b0 = int(pattern_taps[k - 1][1])
-        b1 = int(pattern_taps[k][1])
-        dt = pattern_taps[k][0] - pattern_taps[k - 1][0]
-        if dt > 0.25:
-            run = 1
-            direction = 0
-            continue
-        diff = (b1 - b0) % 8
-        if diff in {1, 7}:
-            dir_now = 1 if diff == 1 else -1
-            if direction in {0, dir_now}:
-                direction = dir_now
-                run += 1
-                max_run = max(max_run, run)
-            else:
-                direction = dir_now
-                run = 2
-        else:
-            run = 1
-            direction = 0
-
-    # ===== 轴交互 / 爬梯交互 / 普通交互 =====
-    buttons_only = [b for _, b in pattern_taps]
-    times_only = [t for t, _ in pattern_taps]
-
-    def _axis_ladder_scan() -> tuple[int, int]:
-        ax = 0
-        ld = 0
-        n = len(buttons_only)
-        for start in range(0, max(0, n - 7)):
-            seq = buttons_only[start:start + 8]
-            ts = times_only[start:start + 8]
-            span_t = ts[-1] - ts[0]
-            if span_t <= 0 or span_t > beat * 2.0:
-                continue
-            even = seq[0::2]
-            odd = seq[1::2]
-            if (
-                len(set(even)) == 1
-                and len(set(odd)) >= 3
-                and even[0] not in set(odd)
-                and all(0 < ts[i + 1] - ts[i] <= beat * 0.5 for i in range(7))
-            ):
-                ax += 1
-
-            # 严格的扩展/收缩模板：center, center-1, center+1,
-            # center-2, center+2 ...；同时接受镜像和反向书写。
-            try:
-                nums = [int(x) for x in seq]
-            except Exception:
-                continue
-            templates: list[list[int]] = []
-            for mirror in (-1, 1):
-                expected = [nums[0]]
-                for index in range(1, 8):
-                    step = (index + 1) // 2
-                    sign = -1 if index % 2 else 1
-                    expected.append(((nums[0] - 1 + mirror * sign * step) % 8) + 1)
-                templates.extend((expected, list(reversed(expected))))
-            matches = max(sum(value == expected for value, expected in zip(nums, template)) for template in templates)
-            if matches == 8 and len(set(nums)) == 8:
-                ld += 1
-        return ax, ld
-
-    axis_hits, ladder_hits = _axis_ladder_scan()
-
-
-    # ===== 死镰：对向 slide + 反向连 tap =====
-    def has_opposite_run(window_taps: list[tuple[float, str]], sdir: int, beat_: float) -> bool:
-        run_b = 1
-        run_dir = 0
-        best = 0
-        best_dir = 0
-        for k in range(1, len(window_taps)):
-            d = _button_dir(window_taps[k - 1][1], window_taps[k][1])
-            dt = window_taps[k][0] - window_taps[k - 1][0]
-            if d != 0 and _button_dist(window_taps[k - 1][1], window_taps[k][1]) == 1 and dt <= beat_ * 0.75:
-                if run_dir in {0, d}:
-                    run_dir = d
-                    run_b += 1
-                else:
-                    run_dir = d
-                    run_b = 2
-                if run_b > best:
-                    best = run_b
-                    best_dir = run_dir
-            else:
-                run_dir = 0
-                run_b = 1
-        if best >= 3 and sdir != 0 and best_dir == -sdir:
-            return True
-        return False
-
-    death_hits = 0
-    for sl in slides:
-        sdir = _slide_dir(sl)
-        window_taps = [
-            (t, b) for t, b in single_taps
-            if sl.time - 0.02 <= t <= sl.time + max(sl.duration, beat * 0.5) + beat * 0.2
-        ]
-        if len(window_taps) < 3:
-            continue
-        span = _slide_span(sl)
-        if sdir != 0 and span >= 2 and has_opposite_run(window_taps, sdir, beat):
-            death_hits += 1
-        elif sdir == 0 and span >= 3 and (
-            has_opposite_run(window_taps, 1, beat) or has_opposite_run(window_taps, -1, beat)
-        ):
-            # 无明确方向时：要求更长连 tap
-            run_b = 1
-            best = 1
-            for k in range(1, len(window_taps)):
-                if _button_dist(window_taps[k-1][1], window_taps[k][1]) == 1 and window_taps[k][0]-window_taps[k-1][0] <= beat*0.75:
-                    run_b += 1
-                    best = max(best, run_b)
-                else:
-                    run_b = 1
-            if best >= 4:
-                death_hits += 1
-
-    # ===== 如龙：真实双押/半拍引导后的同侧扫 =====
-    # Slide 星头、普通曲线和任意连续扫键都不能单独触发如龙。
-    tap_buckets: dict[int, list[NoteEvent]] = defaultdict(list)
-    for event in events:
-        if event.kind in {"tap", "break"} and len(event.buttons) == 1 and str(event.buttons[0]).isdigit():
-            tap_buckets[int(round(event.time * 1000))].append(event)
-    tap_multi_times = [
-        stamp / 1000.0
-        for stamp, group in sorted(tap_buckets.items())
-        if len({str(event.buttons[0]) for event in group}) >= 2
-    ]
-
-    rulong_starts: set[tuple[str, float]] = set()
-    rulong_double_hits = 0
-    rulong_half_hits = 0
-
-    def _same_side_sweep(seq: list[tuple[float, str]], start: int) -> int:
-        if start >= len(seq):
-            return 0
-        direction = 0
-        length = 1
-        for index in range(start + 1, len(seq)):
-            dt = seq[index][0] - seq[index - 1][0]
-            step = _button_dir(seq[index - 1][1], seq[index][1])
-            if 0 < dt <= beat * 0.75 and _button_dist(seq[index - 1][1], seq[index][1]) == 1 and step != 0:
-                if direction not in {0, step}:
-                    break
+    short_hits = 0
+    circle_hits = 0
+    mixed_hits = 0
+    for index in range(1, len(sequence)):
+        previous, current_item = sequence[index - 1], sequence[index]
+        dt = current_item[0] - previous[0]
+        step = _ring_direction(previous[1], current_item[1])
+        if 0 < dt <= beat * 0.75 and _ring_distance(previous[1], current_item[1]) == 1 and step:
+            if direction in {0, step}:
                 direction = step
-                length += 1
-                continue
-            break
-        return length
+                current += 1
+            else:
+                mixed_hits += int(current >= 3)
+                direction = step
+                current = 2
+            max_run = max(max_run, current)
+        else:
+            mixed_hits += int(current >= 3)
+            current = 1
+            direction = 0
+    mixed_hits += int(current >= 3)
+    for start in range(max(0, len(sequence) - 7)):
+        sample = sequence[start:start + 8]
+        if all(
+            0 < sample[index][0] - sample[index - 1][0] <= beat * 0.75
+            and _ring_distance(sample[index - 1][1], sample[index][1]) == 1
+            for index in range(1, len(sample))
+        ):
+            directions = [_ring_direction(sample[index - 1][1], sample[index][1]) for index in range(1, len(sample))]
+            if directions and all(direction == directions[0] for direction in directions):
+                short_hits += 1
+    circle_hits = sum(1 for start in range(len(sequence)) if _same_direction_run(sequence, start, beat) >= 7)
+    return {
+        "sweep_max": float(max_run),
+        "short_sweep_hits": float(short_hits),
+        "circle_hits": float(circle_hits),
+        "sweep_mixed_hits": float(mixed_hits),
+    }
 
-    for mt in tap_multi_times:
-        lead = [str(event.buttons[0]) for event in tap_buckets[int(round(mt * 1000))]]
-        seq = [(t, b) for t, b in pattern_taps if mt < t <= mt + beat * 2.2]
-        if not seq or seq[0][0] - mt > beat * 0.75:
+
+def _same_direction_run(sequence: list[tuple[float, int, int]], start: int, beat: float) -> int:
+    if start >= len(sequence):
+        return 0
+    direction = 0
+    length = 1
+    for index in range(start + 1, len(sequence)):
+        previous, current = sequence[index - 1], sequence[index]
+        step = _ring_direction(previous[1], current[1])
+        if not (0 < current[0] - previous[0] <= beat * 0.75 and _ring_distance(previous[1], current[1]) == 1 and step):
+            break
+        if direction not in {0, step}:
+            break
+        direction = step
+        length += 1
+    return length
+
+
+def _death_scythe_hits(chart: MaidataChart, sequence: list[tuple[float, int, int]], beat: float) -> int:
+    hits = 0
+    for slide in (event for event in chart.events if event.kind == "slide"):
+        path = [_button(value) for value in (slide.path or slide.buttons)]
+        path = [value for value in path if value is not None]
+        if len(path) < 2:
             continue
-        for start in range(min(2, len(seq))):
-            if _same_side_sweep(seq, start) < 4:
-                continue
-            if min(_button_dist(button, seq[start][1]) for button in lead) > 2:
-                continue
-            marker = ("double", round(mt, 3))
-            if marker not in rulong_starts:
-                rulong_double_hits += 1
-                rulong_starts.add(marker)
-            break
+        slide_direction = _ring_direction(path[0], path[1])
+        start = float(slide.time)
+        end = start + max(float(slide.duration), beat * 0.5) + beat * 0.25
+        taps = [(time, number) for time, number, _ in sequence if start - 0.02 <= time <= end]
+        run = 1
+        best = 1
+        best_direction = 0
+        for index in range(1, len(taps)):
+            dt = taps[index][0] - taps[index - 1][0]
+            direction = _ring_direction(taps[index - 1][1], taps[index][1])
+            if 0 < dt <= beat * 0.75 and _ring_distance(taps[index - 1][1], taps[index][1]) == 1 and direction:
+                if best_direction in {0, direction}:
+                    best_direction = direction
+                    run += 1
+                else:
+                    best_direction = direction
+                    run = 2
+                best = max(best, run)
+            else:
+                run = 1
+                best_direction = 0
+        if best >= 3 and slide_direction and best_direction == -slide_direction:
+            hits += 1
+    return hits
 
-    # 半拍/一拍节奏引导：两枚相邻 lead 后，仍须接四枚同向相邻键。
-    for index in range(len(pattern_taps) - 5):
-        first, second = pattern_taps[index], pattern_taps[index + 1]
+
+def _rulong_features(chart: MaidataChart, sequence: list[tuple[float, int, int]], beat: float) -> tuple[int, int, int]:
+    groups = _group_events(chart)
+    tap_multi = [group for group in groups if group["multi"] and all(_is_tap(event) for event in group["events"])]
+    double_hits = 0
+    for group in tap_multi:
+        lead = group["buttons"]
+        following = [(time, number, count) for time, number, count in sequence if group["time"] < time <= group["time"] + beat * 2.2]
+        for start in range(min(2, len(following))):
+            if _same_direction_run(following, start, beat) < 4:
+                continue
+            if min((_ring_distance(number, following[start][1]) for number in lead), default=9) <= 2:
+                double_hits += 1
+                break
+    half_hits = 0
+    for index, (first, second) in enumerate(zip(sequence, sequence[1:])):
         dt = second[0] - first[0]
         if not (abs(dt - beat * 0.5) <= beat * 0.12 or abs(dt - beat) <= beat * 0.12):
             continue
-        if first[1] == second[1] or _button_dist(first[1], second[1]) > 2:
+        if first[1] == second[1] or _ring_distance(first[1], second[1]) > 2:
             continue
-        if _same_side_sweep(pattern_taps[index + 1:index + 7], 0) >= 4:
-            marker = ("half", round(first[0], 3))
-            if marker not in rulong_starts:
-                rulong_half_hits += 1
-                rulong_starts.add(marker)
-    rulong_hits = len(rulong_starts)
+        if _same_direction_run(sequence, index + 1, beat) >= 4:
+            half_hits += 1
+    return double_hits + half_hits, double_hits, half_hits
 
-    # ===== 留尾 = 大跨度 slide；定位兼收快大跨卡手 =====
-    large_span_slides = 0
-    fast_large_span = 0
-    for sl in slides:
-        span = _slide_span(sl)
-        if span >= 3:
-            large_span_slides += 1
-            # 快速：单位跨度时值短
-            if sl.duration > 0 and (sl.duration / max(span, 1)) <= (beat * 0.35):
-                fast_large_span += 1
 
-    # 定位：非重叠 1s 高密大位移 + 快大跨 slide 附近
-    dens_list = []
-    cur = t0
-    while cur <= t1 + 1e-9:
-        dens_list.append(sum(1 for e in events if cur <= e.time < cur + 1.0))
-        cur += 1.0
-    dens_med = statistics.median(dens_list) if dens_list else 0.0
-    dingwei_hits = 0
-    dingwei_peak = 0.0
-    cur = t0
-    while cur <= t1 + 1e-9:
-        density = float(sum(1 for e in events if cur <= e.time < cur + 1.0))
-        wtaps = [(t, b) for t, b in pattern_taps if cur <= t < cur + 1.0]
-        big_jump = 0
-        max_jump = 0
-        jump_n = 0
-        for k in range(1, len(wtaps)):
-            d = _button_dist(wtaps[k - 1][1], wtaps[k][1])
-            dt = wtaps[k][0] - wtaps[k - 1][0]
-            max_jump = max(max_jump, d)
-            if 0 < dt <= 0.22 and d >= 3:
-                big_jump += 1
-                jump_n += 1
-        jrate = jump_n / max(len(wtaps), 1)
-        local_fast_span = sum(
-            1 for sl in slides
-            if cur <= sl.time < cur + 1.0 and _slide_span(sl) >= 3 and sl.duration > 0
-            and sl.duration / max(_slide_span(sl), 1) <= beat * 0.35
-        )
-        score = 0.0
-        if density >= max(14.0, dens_med * 1.9) and big_jump >= 4 and max_jump >= 3 and jrate >= 0.28:
-            score = density / 12.0 + big_jump * 0.2 + jrate
-        elif local_fast_span >= 1 and density >= max(10.0, dens_med * 1.3) and (big_jump >= 2 or max_jump >= 3):
-            score = 1.6 + local_fast_span * 0.3 + big_jump * 0.1
-        if score >= 1.5:
-            dingwei_hits += 1
-            dingwei_peak = max(dingwei_peak, score)
-        cur += 1.0
-
-    # ===== 协调：短纵 + 大位移交互 + 难协调双押夹单点 =====
-    # 大位移交互 a,b,a,b,c,d,c,d。单纯“大跳”不构成协调。
-    coord_disp = 0
-    for start in range(0, max(0, len(buttons_only) - 7)):
-        seq = buttons_only[start:start + 8]
-        ts = times_only[start:start + 8]
-        if ts[-1] - ts[0] > two_meas or any(
-            not (0 < ts[i + 1] - ts[i] <= beat * 0.75) for i in range(7)
-        ):
-            continue
-        dists = [_button_dist(seq[i], seq[i + 1]) for i in range(7)]
-        alternating = (
-            seq[0] == seq[2]
-            and seq[1] == seq[3]
-            and seq[4] == seq[6]
-            and seq[5] == seq[7]
-            and len({seq[0], seq[1], seq[4], seq[5]}) >= 4
-        )
-        if alternating and sum(1 for d in dists if d >= 2) >= 5:
-            coord_disp += 1
-    # 双押夹单键密集：multi 后连续同键/单键
-    dual_clamp = 0
-    for mt in multi_times:
-        mono = [e for e in events if mt < e.time <= mt + beat * 1.5 and e.kind in {"tap", "break"}]
-        if len(mono) >= 3:
-            dual_clamp += 1
-
-    # slides stats
-    short_slides = sum(1 for e in slides if 0 < e.duration <= 0.35)
-    long_slides = sum(1 for e in slides if e.duration >= 0.75)
-    wifi = sum(1 for e in slides if "w" in (e.shape or ""))
-    curve = sum(1 for e in slides if any(s in (e.shape or "") for s in ("pp", "qq", "p", "q", "z", "V", "<>")))
-
-    # IOI for 跳拍：附点/swing，而非泛不齐
-    intervals = []
-    for k in range(1, len(pattern_taps)):
-        dt = pattern_taps[k][0] - pattern_taps[k - 1][0]
-        if 0.05 <= dt <= beat * 2.5:
-            intervals.append(dt)
-    dotted_runs = 0
-    swing_runs = 0
-    if len(intervals) >= 6:
-        # 附点：长短比接近 3:1 或 2:1 的交替
-        run = 0
-        for i in range(1, len(intervals)):
-            a, b = intervals[i - 1], intervals[i]
-            ratio = max(a, b) / max(min(a, b), 1e-6)
-            long_short = (a > b and 1.7 <= ratio <= 3.4) or (b > a and 1.7 <= ratio <= 3.4)
-            if long_short:
-                run += 1
-                if run >= 3:
-                    dotted_runs += 1
-                    run = 0
+def _hold_features(chart: MaidataChart, two_measure: float) -> dict[str, float]:
+    holds = sorted((event for event in chart.events if event.kind == "hold"), key=lambda item: item.time)
+    lengths = [float(event.duration) for event in holds if event.duration > 0]
+    gaps: list[float] = []
+    short_gap = 0
+    chain_max = 1
+    chain_span = 0.0
+    if holds:
+        chain = 1
+        chain_start = holds[0].time
+        chain_end = holds[0].time + max(holds[0].duration, 0.0)
+        for previous, current in zip(holds, holds[1:]):
+            gap = current.time - (previous.time + max(previous.duration, 0.0))
+            gaps.append(gap)
+            if gap <= min(0.18, two_measure / 16.0):
+                short_gap += 1
+                chain += 1
+                chain_end = max(chain_end, current.time + max(current.duration, 0.0))
+                chain_max = max(chain_max, chain)
+                chain_span = max(chain_span, chain_end - chain_start)
             else:
-                run = 0
-        # swing/shuffle：连续 even-odd 配对 ratio 稳定在 ~2
-        pair_ok = 0
-        for i in range(0, len(intervals) - 1, 2):
-            a, b = intervals[i], intervals[i + 1]
-            ratio = max(a, b) / max(min(a, b), 1e-6)
-            if 1.6 <= ratio <= 2.6:
-                pair_ok += 1
-            else:
-                if pair_ok >= 3:
-                    swing_runs += 1
-                pair_ok = 0
-        if pair_ok >= 3:
-            swing_runs += 1
-        mean_i = statistics.mean(intervals)
-        cv = statistics.pstdev(intervals) / max(mean_i, 1e-6)
-        irregular = sum(1 for x in intervals if abs(x - mean_i) > mean_i * 0.35) / len(intervals)
-    else:
-        cv = 0.0
-        irregular = 0.0
-
-    # density peaks
-    dens = dens_list or [0.0]
-    peak = max(dens)
-    median = statistics.median(dens)
-    mean_d = statistics.mean(dens)
-
-    # entropy
-    counter = Counter(b for _, b in single_taps if True)
-    # only pure taps entropy roughly
-    pure_buttons = []
-    for e in events:
-        if e.kind in {"tap", "break"} and len(e.buttons) == 1 and str(e.buttons[0]).isdigit():
-            pure_buttons.append(str(e.buttons[0]))
-    counter = Counter(pure_buttons)
-    probs = [c / max(sum(counter.values()), 1) for c in counter.values()] or [1.0]
-    entropy = -sum(p * math.log(p + 1e-12, 2) for p in probs) / 3.0
-
-    pure_tap_n = max(len(pure_buttons), 1)
-
+                chain = 1
+                chain_start = current.time
+                chain_end = current.time + max(current.duration, 0.0)
+        chain_span = max(chain_span, chain_end - chain_start)
     return {
-        "empty": 0.0,
-        "ds": float(chart.ds or 0),
-        "bpm": float(bpm),
-        "duration": float(duration),
-        "measure_sec": float(measure),
-        "two_measure_sec": float(two_meas),
-        "total": float(total),
-        "nps": total / duration,
-        "tap_ratio": len(taps) / total,
-        "slide_ratio": len(slides) / total,
-        "hold_ratio": len(holds) / total,
-        "touch_ratio": len(touches) / total,
-        "break_ratio": sum(1 for e in events if getattr(e, "is_break", False) or e.kind == "break") / total,
-        "multi_ratio": float(multi_ratio_global),
-        "multi_abs_peak": float(multi_abs_peak),
-        "multi_peak": float(multi_abs_peak),
-        "multi_hot4": float(multi_hot4),
-        "multi_hot_windows": float(multi_hot4),
-        "multi_hot4_rate": float(multi_hot4) / max(duration, 1.0),
-        "multi_chain_max": float(multi_chain_max),
-        "dual_dense_run": float(dual_run),
-        "dual_dense_peak": float(dual_peak),
-        "dual_dense_hot": float(dual_hot),
-        "hold_dense_run": float(hold_run),
-        "hold_dense_peak": float(hold_peak),
-        "hold_dense_hot": float(hold_hot),
-        "peak_density": float(peak),
-        "mean_density": float(mean_d),
-        "median_density": float(median),
-        "burst_ratio": float(peak / max(median, 1.0)),
-        "trill": float(trill),
-        "stack": float(stack),
-        "jump": float(jump),
-        "sweep_run": float(max_run),
-        "short_stack_runs": float(short_stack_runs),
-        "short_stack_hot": float(short_stack_hot),
-        "short_stack_distinct_hot": float(short_stack_distinct_hot),
-        "axis_hits": float(axis_hits),
-        "ladder_hits": float(ladder_hits),
-        "death_scythe_hits": float(death_hits),
-        "rulong_hits": float(rulong_hits),
-        "rulong_double_hits": float(rulong_double_hits),
-        "rulong_half_hits": float(rulong_half_hits),
-        "coord_disp": float(coord_disp),
-        "dual_clamp": float(dual_clamp),
-        "short_slides": float(short_slides),
-        "long_slides": float(long_slides),
-        "wifi_slides": float(wifi),
-        "curve_slides": float(curve),
-        "large_span_slides": float(large_span_slides),
-        "fast_large_span_slides": float(fast_large_span),
         "hold_count": float(len(holds)),
-        "short_hold_count": float(len(short_holds)),
-        "very_short_hold_count": float(len(very_short_holds)),
-        "hold_local_peak": float(hold_local_peak),
-        "hold_hot_windows": float(hold_hot_windows),
-        "hold_gap_min": float(hold_gap_min if hold_gap_min < 900 else 9.0),
-        "hold_gap_short": float(hold_gap_short),
-        "hold_chain_max": float(hold_chain_max),
-        "hold_chain_span_max": float(hold_chain_span_max),
-        "hold_len_cv": float(hold_len_cv),
-        "hold_gap_cv": float(hold_gap_cv),
-        "hold_weird": float(hold_weird),
-        "dingwei_hits": float(dingwei_hits),
-        "dingwei_peak": float(dingwei_peak),
-        "dotted_runs": float(dotted_runs),
-        "swing_runs": float(swing_runs),
-        "ioi_irregular": float(irregular),
-        "ioi_cv": float(cv),
-        "key_entropy": float(entropy),
-        "slide_count": float(len(slides)),
-        "touch_count": float(len(touches)),
-        "tap_count": float(len(taps)),
-        "pure_tap_n": float(pure_tap_n),
+        "short_hold_count": float(sum(0 < event.duration <= 0.4 for event in holds)),
+        "hold_gap_min": float(min(gaps, default=9.0)),
+        "hold_gap_short": float(short_gap),
+        "hold_chain_max": float(chain_max),
+        "hold_chain_span_max": float(chain_span),
+        "hold_len_cv": float(_cv(lengths)),
+        "hold_gap_cv": float(_cv([gap for gap in gaps if 0 <= gap < 2.0])),
+        "hold_weird": float(
+            len(holds) >= 8
+            and chain_span >= two_measure * 0.75
+            and (_cv(lengths) >= 0.75 or _cv([gap for gap in gaps if 0 <= gap < 2.0]) >= 0.85)
+            and short_gap >= 3
+        ),
     }
 
 
-def features_to_tag_scores(feat: dict[str, float]) -> dict[str, float]:
-    if feat.get("empty"):
-        return {}
+def _slide_features(chart: MaidataChart, beat: float) -> dict[str, float]:
+    slides = [event for event in chart.events if event.kind == "slide"]
+    spans: list[int] = []
+    durations: list[float] = []
+    complex_count = 0
+    for slide in slides:
+        path = [_button(value) for value in (slide.path or slide.buttons)]
+        path = [value for value in path if value is not None]
+        span = sum(_ring_distance(path[index - 1], path[index]) for index in range(1, len(path)))
+        spans.append(span)
+        durations.append(float(slide.duration))
+        complex_count += int(len(path) >= 3 or len(str(slide.shape or "")) >= 2)
+    large = [span for span in spans if span >= 3]
+    fast_large = [duration / max(span, 1) for span, duration in zip(spans, durations) if span >= 3 and duration > 0]
+    overlaps = 0
+    overlap_peak = 0
+    for event in sorted(slides, key=lambda item: item.time):
+        active = sum(
+            1 for other in slides
+            if other.time <= event.time < other.time + max(other.duration, 0.0)
+        )
+        overlap_peak = max(overlap_peak, active)
+        overlaps += int(active >= 2)
+    return {
+        "slide_count": float(len(slides)),
+        "short_slides": float(sum(duration <= beat * 1.5 for duration in durations)),
+        "large_span_slides": float(len(large)),
+        "fast_large_span_slides": float(sum(value <= beat * 0.35 for value in fast_large)),
+        "complex_slide_count": float(complex_count),
+        "slide_overlap_count": float(overlaps),
+        "slide_overlap_peak": float(overlap_peak),
+        "slide_ratio": len(slides) / max(len(chart.events), 1),
+        "short_slide_ratio": sum(duration <= beat * 1.5 for duration in durations) / max(len(slides), 1),
+    }
 
-    scores: dict[str, float] = {}
 
-    def add(tag: str, strength: float) -> None:
-        if strength <= 0:
-            return
+def _position_features(chart: MaidataChart, groups: list[dict[str, Any]], two_measure: float) -> dict[str, float]:
+    violations = [group for group in groups if group["zone_cross"]]
+    times = [float(group["time"]) for group in groups]
+    local_peak = 0
+    for left, group in enumerate(groups):
+        right = bisect_right(times, float(group["time"]) + two_measure - 1e-9)
+        local_peak = max(local_peak, sum(item["zone_cross"] for item in groups[left:right]))
+    return {
+        "zone_violation_count": float(len(violations)),
+        "zone_violation_peak": float(local_peak),
+        "zone_violation_ratio": len(violations) / max(len(groups), 1),
+    }
+
+
+def _anchor_features(chart: MaidataChart, groups: list[dict[str, Any]], two_measure: float, beat: float) -> dict[str, float]:
+    times = [float(group["time"]) for group in groups]
+    anchor_hits = 0
+    anchor_duration = 0.0
+    anchor_peak_nps = 0.0
+    for left, group in enumerate(groups):
+        right = bisect_right(times, times[left] + two_measure - 1e-9)
+        taps = [event for item in groups[left:right] for event in item["events"] if _is_tap(event)]
+        by_button: dict[int, list[float]] = defaultdict(list)
+        for event in taps:
+            for number in _event_buttons(event):
+                by_button[number].append(float(event.time))
+        for button, button_times in by_button.items():
+            if len(button_times) < 6:
+                continue
+            intervals = [right - left for left, right in zip(button_times, button_times[1:]) if right > left]
+            if len(intervals) < 5 or _cv(intervals) > 0.16:
+                continue
+            other = sum(
+                1 for item in groups[left:right]
+                for event in item["events"]
+                if not (_is_tap(event) and button in _event_buttons(event))
+            )
+            if other < 3:
+                continue
+            anchor_hits += 1
+            anchor_duration = max(anchor_duration, button_times[-1] - button_times[0])
+            anchor_peak_nps = max(anchor_peak_nps, len(taps) / max(two_measure, 1e-6))
+    return {
+        "anchor_hits": float(anchor_hits),
+        "anchor_duration": float(anchor_duration),
+        "anchor_peak_nps": float(anchor_peak_nps),
+    }
+
+
+def _misalignment_features(chart: MaidataChart, groups: list[dict[str, Any]], beat: float) -> dict[str, float]:
+    if chart.level_index != 3:  # XLS defines this candidate on Master charts.
+        return {"misalignment_hits": 0.0, "misalignment_position_changes": 0.0}
+    double_times = [group for group in groups if group["multi"] and all(_is_tap(event) for event in group["events"])]
+    hits = 0
+    positions: set[tuple[int, ...]] = set()
+    for slide in (event for event in chart.events if event.kind == "slide"):
+        lead = min(double_times, key=lambda group: abs(group["time"] - (slide.time - beat)), default=None)
+        if lead is None or abs(lead["time"] - (slide.time - beat)) > beat * 0.12:
+            continue
+        hits += 1
+        positions.add(tuple(lead["buttons"]))
+    return {"misalignment_hits": float(hits), "misalignment_position_changes": float(len(positions))}
+
+
+def _interaction_features(sequence: list[tuple[float, int, int]], beat: float, two_measure: float) -> dict[str, float]:
+    axis_hits = 0
+    axis_duration = 0.0
+    ladder_hits = 0
+    ladder_nps = 0.0
+    ordinary_hits = 0
+    ordinary_duration = 0.0
+    ordinary_non_tap = 0
+    coord_disp = 0
+    stack = 0
+    stack_duration = 0.0
+    short_stack_points: list[tuple[float, int]] = []
+
+    for start in range(max(0, len(sequence) - 7)):
+        sample = sequence[start:start + 8]
+        if len(sample) < 8:
+            continue
+        span = sample[-1][0] - sample[0][0]
+        if span <= 0 or span > beat * 2.0:
+            continue
+        values = [item[1] for item in sample]
+        even = values[0::2]
+        odd = values[1::2]
+        if len(set(even)) == 1 and len(set(odd)) >= 3 and even[0] not in set(odd):
+            axis_hits += 1
+            axis_duration = max(axis_duration, span)
+
+        templates: list[list[int]] = []
+        for mirror in (-1, 1):
+            expected = [values[0]]
+            for index in range(1, 8):
+                step = (index + 1) // 2
+                sign = -1 if index % 2 else 1
+                expected.append(((values[0] - 1 + mirror * sign * step) % 8) + 1)
+            templates.extend((expected, list(reversed(expected))))
+        if any(values == template for template in templates):
+            ladder_hits += 1
+            ladder_nps = max(ladder_nps, 8.0 / max(span, 1e-6))
+
+        distances = [_ring_distance(values[index - 1], values[index]) for index in range(1, 8)]
+        intervals = [sample[index][0] - sample[index - 1][0] for index in range(1, 8)]
+        if all(0 < interval <= beat * 0.65 for interval in intervals) and sum(distance == 1 for distance in distances) >= 5:
+            ordinary_hits += 1
+            ordinary_duration = max(ordinary_duration, span)
+            ordinary_non_tap += sum(1 for _, _, count in sample if count > 1)
+
+        # A repeated large-displacement alternating shape is an XLS 协调
+        # example, rather than a generic jump.
+        if values[0] == values[2] and values[1] == values[3] and values[4] == values[6] and values[5] == values[7]:
+            if _ring_distance(values[0], values[1]) >= 2 or _ring_distance(values[2], values[4]) >= 3:
+                coord_disp += 1
+
+    for left, right in zip(sequence, sequence[1:]):
+        dt = right[0] - left[0]
+        if left[1] == right[1] and 0 < dt <= beat * 0.6:
+            stack += 1
+            stack_duration = max(stack_duration, dt)
+            short_stack_points.append((right[0], right[1]))
+
+    short_stack_hot = 0
+    short_stack_distinct_hot = 0
+    for start, _ in short_stack_points:
+        selected = [item for item in short_stack_points if start <= item[0] < start + two_measure]
+        short_stack_hot = max(short_stack_hot, len(selected))
+        short_stack_distinct_hot = max(short_stack_distinct_hot, len({item[1] for item in selected}))
+    return {
+        "axis_hits": float(axis_hits),
+        "axis_duration": float(axis_duration),
+        "ladder_hits": float(ladder_hits),
+        "ladder_nps": float(ladder_nps),
+        "ordinary_interaction_hits": float(ordinary_hits),
+        "ordinary_interaction_duration": float(ordinary_duration),
+        "ordinary_interaction_non_tap": float(ordinary_non_tap),
+        "coord_disp": float(coord_disp),
+        "stack": float(stack),
+        "stack_ratio": float(stack / max(len(sequence), 1)),
+        "stack_duration": float(stack_duration),
+        "short_stack_hot": float(short_stack_hot),
+        "short_stack_distinct_hot": float(short_stack_distinct_hot),
+    }
+
+
+def _rhythm_features(chart: MaidataChart, beat: float) -> dict[str, float]:
+    points = [(time, number) for time, number, _ in _tap_sequence(chart)]
+    if len(points) < 10:
+        return {"swing_runs": 0.0, "dotted_runs": 0.0, "ioi_cv": 0.0, "ioi_irregular": 0.0}
+    intervals = [right[0] - left[0] for left, right in zip(points, points[1:]) if right[0] > left[0]]
+    swing = dotted = 0
+    for start in range(len(intervals) - 7):
+        sample = intervals[start:start + 8]
+        swing_pairs = dotted_pairs = 0
+        for index in range(0, 8, 2):
+            left, right = sample[index], sample[index + 1]
+            ratio = max(left, right) / max(min(left, right), 1e-9)
+            total = left + right
+            if 1.6 <= ratio <= 2.6 and 0.72 * beat <= total <= 1.28 * beat:
+                swing_pairs += 1
+            if 1.7 <= ratio <= 3.4 and 0.42 * beat <= total <= 0.72 * beat:
+                dotted_pairs += 1
+        swing += int(swing_pairs >= 3)
+        dotted += int(dotted_pairs >= 3)
+    return {
+        "swing_runs": float(swing),
+        "dotted_runs": float(dotted),
+        "ioi_cv": float(_cv(intervals)),
+        "ioi_irregular": float(sum(abs(value - statistics.median(intervals)) > statistics.median(intervals) * 0.28 for value in intervals) / max(len(intervals), 1)),
+    }
+
+
+def extract_features(chart: MaidataChart) -> dict[str, float]:
+    events = sorted([event for event in chart.events if event.kind], key=lambda item: item.time)
+    if not events:
+        return {"empty": 1.0}
+    bpm = float(chart.bpm or events[0].bpm or 120.0)
+    beat = 60.0 / max(bpm, 1.0)
+    two_measure = 2.0 * _measure_seconds(bpm)
+    groups = _group_events(chart)
+    windows, window_summary = _window_stats(chart)
+    sequence = _tap_sequence(chart)
+    sweep = _sweep_features(sequence, beat)
+    holds = _hold_features(chart, two_measure)
+    slides = _slide_features(chart, beat)
+    position = _position_features(chart, groups, two_measure)
+    anchor = _anchor_features(chart, groups, two_measure, beat)
+    misalignment = _misalignment_features(chart, groups, beat)
+    rhythm = _rhythm_features(chart, beat)
+    interaction = _interaction_features(sequence, beat, two_measure)
+    death = _death_scythe_hits(chart, sequence, beat)
+    rulong, rulong_double, rulong_half = _rulong_features(chart, sequence, beat)
+    densities = []
+    group_times = [float(item["time"]) for item in groups]
+    for left, group in enumerate(groups):
+        right = bisect_right(group_times, float(group["time"]) + 1.0 - 1e-9)
+        densities.append(sum(len(item["events"]) for item in groups[left:right]))
+    median_density = statistics.median(densities) if densities else 0.0
+    peak_density = max(densities, default=0.0)
+    total = len(events)
+    taps = sum(_is_tap(event) for event in events)
+    hold_count = sum(event.kind == "hold" for event in events)
+    duration = max(events[-1].time - events[0].time, 0.01)
+    key_counts = [number for event in events for number in _event_buttons(event)]
+    entropy = 0.0
+    if key_counts:
+        counts = [key_counts.count(number) / len(key_counts) for number in range(1, 9)]
+        entropy = -sum(value * math.log(value, 2) for value in counts if value > 0) / 3.0
+    stack = 0
+    for first, second in zip(sequence, sequence[1:]):
+        if first[1] == second[1] and 0 < second[0] - first[0] <= beat * 0.6:
+            stack += 1
+    jump = sum(
+        _ring_distance(left[1], right[1]) >= 3 and 0 < right[0] - left[0] <= beat * 0.8
+        for left, right in zip(sequence, sequence[1:])
+    )
+    return {
+        "bpm": bpm,
+        "ds": float(chart.ds or 0.0),
+        "duration": duration,
+        "total": float(total),
+        "nps": total / duration,
+        "tap_ratio": taps / max(total, 1),
+        "hold_ratio": hold_count / max(total, 1),
+        "slide_ratio": slides["slide_ratio"],
+        "touch_ratio": sum(event.kind == "touch" for event in events) / max(total, 1),
+        "key_entropy": entropy,
+        "mean_density": sum(densities) / max(len(densities), 1),
+        "median_density": median_density,
+        "peak_density": peak_density,
+        "burst_ratio": peak_density / max(median_density, 1.0),
+        "multi_ratio": sum(group["multi"] for group in groups) / max(len(groups), 1),
+        "stack": float(stack),
+        "jump": float(jump),
+        "two_measure_sec": two_measure,
+        "window_count": window_summary["window_count"],
+        "dual_window_count": window_summary["dual_window_count"],
+        "dual_dense_run": window_summary["dual_dense_run"],
+        "dual_dense_peak": window_summary["dual_dense_peak"],
+        "hold_window_count": window_summary["hold_window_count"],
+        "hold_dense_run": window_summary["hold_dense_run"],
+        "hold_dense_peak": window_summary["hold_dense_peak"],
+        "window_density_peak": window_summary["window_density_peak"],
+        "window_zone_cross_peak": window_summary["window_zone_cross_peak"],
+        **holds,
+        **slides,
+        **position,
+        **anchor,
+        **misalignment,
+        **rhythm,
+        **sweep,
+        **interaction,
+        "death_scythe_hits": float(death),
+        "rulong_hits": float(rulong),
+        "rulong_double_hits": float(rulong_double),
+        "rulong_half_hits": float(rulong_half),
+        "slide_count": slides["slide_count"],
+        "tap_count": float(taps),
+        "touch_count": float(sum(event.kind == "touch" for event in events)),
+        "pure_tap_n": float(len(sequence)),
+        "local_window_count": float(len(windows)),
+    }
+
+
+def _span_evidence(windows: list[dict[str, Any]], predicate: Any, limit: int = 3) -> list[dict[str, Any]]:
+    selected = [window for window in windows if predicate(window)]
+    if not selected:
+        selected = windows[:1]
+    return selected[:limit]
+
+
+def _add_score(scores: dict[str, float], tag: str, strength: float) -> None:
+    if strength > 0:
         scores[tag] = max(scores.get(tag, 0.0), tag_weight(tag) * min(1.45, strength))
-
-    total = max(feat["total"], 1.0)
-    nps = feat["nps"]
-    bpm = feat["bpm"]
-    ds = feat["ds"]
-    duration = max(feat["duration"], 1.0)
-    slide_ratio = feat["slide_ratio"]
-    tap_ratio = feat["tap_ratio"]
-    two_meas = max(feat.get("two_measure_sec", 2.0), 0.5)
-
-    jump_rate = feat["jump"] / total
-    trill_rate = feat["trill"] / max(feat.get("pure_tap_n", total), 1.0)
-    stack_rate = feat["stack"] / total
-    short_slide_rate = feat["short_slides"] / max(feat["slide_count"], 1.0)
-    long_slide_rate = feat["long_slides"] / max(feat["slide_count"], 1.0)
-
-    # ===== 管子 =====
-    guanzi = 0.0
-    if (
-        feat.get("hold_dense_run", 0) >= two_meas * 0.95
-        and feat.get("hold_dense_peak", 0) >= 0.5
-        and feat.get("hold_dense_hot", 0) >= 2
-    ):
-        guanzi += 0.6 + min(0.4, feat["hold_dense_peak"])
-    if (
-        feat.get("hold_chain_max", 0) >= 5
-        and feat.get("hold_chain_span_max", 0) >= two_meas * 0.75
-        and feat.get("short_hold_count", 0) >= 10
-    ):
-        guanzi += 0.55
-    if (
-        feat.get("hold_weird", 0) >= 1
-        and feat.get("hold_chain_span_max", 0) >= two_meas
-        and feat.get("hold_hot_windows", 0) >= 4
-    ):
-        guanzi += 0.35  # 节奏型怪异也必须跨越局部两小节
-    if guanzi >= 0.55:
-        add("管子", guanzi)
-
-    # ===== 双押：两小节窗口 ≥75% =====
-    shuangya = 0.0
-    if feat.get("dual_dense_run", 0) >= two_meas * 0.95 and feat.get("dual_dense_peak", 0) >= 0.75:
-        shuangya += 0.7 + min(0.4, (feat["dual_dense_peak"] - 0.75) * 2)
-    if feat.get("dual_dense_hot", 0) >= 2 and feat.get("dual_dense_peak", 0) >= 0.75:
-        shuangya += 0.35
-    # 弱辅助：极强链式不再单独成标签，除非已有两小节证据
-    if shuangya >= 0.7:
-        add("双押", shuangya)
-
-    # ===== 定位 =====
-    if feat["dingwei_hits"] >= 2 or (feat["dingwei_hits"] >= 1 and feat["dingwei_peak"] >= 2.8):
-        add("定位", 0.5 + min(1.0, feat["dingwei_hits"] / 4.0 + feat["dingwei_peak"] / 4.0))
-    elif feat.get("fast_large_span_slides", 0) >= 4 and jump_rate >= 0.08:
-        add("定位", 0.45 + min(0.7, feat["fast_large_span_slides"] / 12.0))
-
-    # ===== 留尾：快速大跨度 slide 出张 =====
-    if feat.get("large_span_slides", 0) >= 6 and feat.get("fast_large_span_slides", 0) >= 3:
-        add("留尾", 0.45 + min(0.9, feat["fast_large_span_slides"] / 12.0))
-
-    # 手速 / 底力 / 爆发
-    speed = 0.0
-    if nps >= 7.5:
-        speed += 0.45 + min(0.5, (nps - 7.5) / 8.0)
-    if bpm >= 200:
-        speed += 0.25 + min(0.35, (bpm - 200) / 120.0)
-    if feat["peak_density"] >= 14:
-        speed += 0.2
-    if speed >= 0.55:
-        add("手速", speed)
-    if feat["total"] >= 700 and feat["mean_density"] >= 6.5 and duration >= 70:
-        add("底力", min(1.3, feat["total"] / 1100.0 + feat["mean_density"] / 14.0))
-    if feat["burst_ratio"] >= 2.4 and feat["peak_density"] >= 14 and feat["peak_density"] - feat["median_density"] >= 6:
-        add("爆发", 0.45 + min(0.9, (feat["burst_ratio"] - 2.2) / 2.5))
-
-    # 交互族
-    if feat.get("axis_hits", 0) >= 3:
-        add("轴交互", 0.5 + min(0.9, feat["axis_hits"] / 12.0))
-    if feat.get("ladder_hits", 0) >= 1:
-        add("爬梯交互", 0.5 + min(0.9, feat["ladder_hits"] / 10.0))
-    if trill_rate >= 0.035 and feat["trill"] >= 12:
-        # 若已被更细标签覆盖，仍可保留普通交互但稍弱
-        base = 0.45 + min(0.9, trill_rate * 12 + feat["trill"] / 60.0)
-        if feat.get("axis_hits", 0) >= 3 or feat.get("ladder_hits", 0) >= 2:
-            base *= 0.75
-        add("交互", base)
-
-    if stack_rate >= 0.06 and feat["stack"] >= 18:
-        add("纵连", 0.4 + min(0.9, stack_rate * 8))
-        if stack_rate >= 0.11:
-            add("叠键", 0.4 + min(0.8, stack_rate * 6))
-
-    if feat["sweep_run"] >= 7:
-        add("扫键", 0.45 + min(0.9, (feat["sweep_run"] - 6) / 10.0))
-    if jump_rate >= 0.12 and feat["jump"] >= 30:
-        add("飞手", 0.4 + min(0.95, (jump_rate - 0.1) * 6))
-
-    # 死镰 / 如龙（重定义）
-    if feat.get("death_scythe_hits", 0) >= 2:
-        add("死镰", 0.55 + min(0.9, feat["death_scythe_hits"] / 8.0))
-    if feat.get("rulong_hits", 0) >= 2:
-        add("如龙", 0.55 + min(0.9, feat["rulong_hits"] / 12.0))
-
-    # 协调（原拆谱）
-    coord = 0.0
-    if feat.get("short_stack_hot", 0) >= 4 and feat.get("short_stack_distinct_hot", 0) >= 4:
-        coord += 0.55 + min(0.4, feat["short_stack_hot"] / 12.0)
-    if feat.get("coord_disp", 0) >= 1:
-        coord += 0.6 + min(0.4, feat["coord_disp"] / 8.0)
-    if coord >= 0.55:
-        add("协调", coord)
-
-    # 滑键其它
-    if feat["slide_count"] >= 20 and long_slide_rate >= 0.18:
-        add("一笔划", 0.4 + min(0.9, long_slide_rate * 2.5))
-    if feat["slide_count"] >= 25 and short_slide_rate >= 0.45 and feat["short_slides"] >= 18:
-        add("秒划", 0.4 + min(0.9, short_slide_rate * 1.5))
-    if short_slide_rate >= 0.4 and slide_ratio >= 0.1 and feat["short_slides"] >= 15:
-        add("防蹭", 0.35 + min(0.85, short_slide_rate))
-
-    if tap_ratio >= 0.68 and slide_ratio <= 0.09 and feat["key_entropy"] >= 0.8 and nps >= 5:
-        add("散打", 0.45 + min(0.85, feat["key_entropy"]))
-
-    # 跳拍：swing/dotted
-    if feat.get("swing_runs", 0) >= 1 or feat.get("dotted_runs", 0) >= 2:
-        add("跳拍", 0.5 + min(0.9, feat.get("swing_runs", 0) * 0.25 + feat.get("dotted_runs", 0) * 0.15))
-        add("节奏", 0.35 + min(0.6, feat.get("ioi_cv", 0) / 2))
-    if feat["ioi_cv"] <= 0.28 and feat["ioi_irregular"] <= 0.22 and total >= 250:
-        add("定拍", 0.4 + (0.28 - feat["ioi_cv"]))
-    if feat["ioi_irregular"] >= 0.45 and ds >= 13.2 and slide_ratio >= 0.05 and feat.get("swing_runs", 0) == 0:
-        add("错位", 0.35 + min(0.85, feat["ioi_irregular"]))
-
-    hand = 0.0
-    if jump_rate >= 0.1:
-        hand += 0.3
-    if trill_rate >= 0.03:
-        hand += 0.25
-    if feat.get("dual_dense_run", 0) >= two_meas:
-        hand += 0.2
-    if feat["sweep_run"] >= 6 and jump_rate >= 0.08:
-        hand += 0.2
-    if hand >= 0.65:
-        add("手序", hand)
-
-    if feat["ioi_cv"] >= 0.85 and feat["ioi_irregular"] >= 0.5 and slide_ratio < 0.2 and ds >= 13.0:
-        add("背谱", 0.35 + min(0.75, feat["ioi_cv"] / 2))
-
-    if ds >= 14.0:
-        for key in list(scores):
-            scores[key] *= 1.04
-    return scores
 
 
 def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
-    feat = extract_features(chart)
-    scores = features_to_tag_scores(feat)
-    two_meas = max(feat.get("two_measure_sec", 2.0), 0.5)
+    features = extract_features(chart)
+    windows, _summary = _window_stats(chart)
+    ds = float(chart.ds or 0.0)
+    bpm = float(chart.bpm or 120.0)
+    beat = 60.0 / max(bpm, 1.0)
+    raw: list[str] = []
+    difficult: list[str] = []
+    scores: dict[str, float] = {}
+    evidence: dict[str, list[dict[str, Any]]] = {}
 
-    if "管子" in scores and feat.get("short_hold_count", 0) >= 8 and (
-        feat.get("hold_dense_run", 0) >= two_meas * 0.9
-        and feat.get("hold_dense_peak", 0) >= 0.5
-        and feat.get("hold_dense_hot", 0) >= 2
-        or (
-            feat.get("hold_chain_max", 0) >= 5
-            and feat.get("hold_chain_span_max", 0) >= two_meas * 0.75
+    def add(
+        tag: str,
+        score: float,
+        *,
+        hard: bool = False,
+        candidate_tag: str | None = None,
+        spans: list[dict[str, Any]] | None = None,
+        reason: str = "",
+    ) -> None:
+        candidate = candidate_tag or tag
+        if candidate not in raw:
+            raw.append(candidate)
+        _add_score(scores, candidate, score)
+        if candidate != tag:
+            _add_score(scores, tag, score)
+        if hard and tag not in difficult:
+            difficult.append(tag)
+        if spans:
+            evidence[tag] = [
+                {
+                    "kind": "two_measure_window",
+                    "event_indexes": item.get("event_indexes", []),
+                    "raw": item.get("sequence", ""),
+                    "position": {"start": item.get("start"), "end": item.get("end"), "bpm": item.get("bpm")},
+                    "reason": reason,
+                }
+                for item in spans[:3]
+            ]
+
+    dual = _span_evidence(windows, lambda item: item["multi_ratio"] >= 0.75 and item["onset_count"] >= 8)
+    hold = _span_evidence(windows, lambda item: item["hold_ratio"] >= 0.50 and item["onset_count"] >= 16)
+    strict_hold = _span_evidence(windows, lambda item: item["hold_ratio"] >= 0.65 and item["onset_count"] >= 16)
+    if features["dual_window_count"] and dual:
+        add("双押", 0.75 + features["dual_dense_peak"] * 0.5, hard=features["dual_dense_peak"] >= 0.82 or features["window_density_peak"] >= 14, spans=dual, reason="连续两小节内同时击组占比达到候选阈值")
+    if features["hold_window_count"] and hold:
+        hold_strict = bool(strict_hold and (features["hold_gap_min"] <= min(0.12, beat * 0.22) or features["hold_weird"] or features["hold_chain_max"] >= 7))
+        add("管子", 0.7 + features["hold_dense_peak"] * 0.5, hard=hold_strict, spans=hold, reason="连续两小节 Hold 密度或 Hold 链结构达到阈值")
+
+    # Timing and generalized physical skills.
+    if features["swing_runs"] or features["dotted_runs"]:
+        rhythm_windows = _span_evidence(windows, lambda item: True)
+        add("跳拍", 0.65 + min(0.6, features["swing_runs"] * 0.08 + features["dotted_runs"] * 0.08), hard=features["swing_runs"] >= 2 or features["dotted_runs"] >= 3, spans=rhythm_windows, reason="局部 Swing、Shuffle 或连续附点节奏成立")
+        add("节奏", 0.55 + min(0.6, features["ioi_cv"]), hard=features["ioi_irregular"] >= 0.45, spans=rhythm_windows, reason="局部节奏间隔发生成组变化")
+    if features["ioi_cv"] <= 0.18 and features["anchor_hits"]:
+        spans = _span_evidence(windows, lambda item: item["onset_count"] >= 6)
+        add("定拍", 0.65 + min(0.55, features["anchor_duration"] / max(features["two_measure_sec"], 0.1)), hard=features["anchor_duration"] >= features["two_measure_sec"] * 2 or features["anchor_peak_nps"] >= 8, spans=spans, reason="一只手锚定稳定拍点，另一只手同时处理其他配置")
+
+    # The XLS deletes 背谱 and 一笔划 as model labels.  Their former signals
+    # are intentionally not converted to any new label.
+    if features["nps"] >= 7.5 or bpm >= 200 or features["peak_density"] >= 14:
+        speed_score = 0.55 + min(0.85, max(0.0, features["nps"] - 7.5) / 8.0 + max(0.0, bpm - 200) / 400.0)
+        add("手速", speed_score, hard=features["nps"] >= 10.5 or features["peak_density"] >= 18, spans=windows[:2], reason="单位时间处理速度达到候选阈值")
+    if features["total"] >= 700 and features["mean_density"] >= 6.5 and features["duration"] >= 70:
+        add("底力", 0.7 + min(0.55, features["total"] / 1500.0), hard=features["total"] >= 1000 and features["mean_density"] >= 8, spans=windows[:2], reason="长时间保持较高物量和平均密度")
+    if features["burst_ratio"] >= 2.4 and features["peak_density"] >= 14 and features["peak_density"] - features["median_density"] >= 6:
+        add("爆发", 0.7 + min(0.6, (features["burst_ratio"] - 2.2) / 2.5), hard=features["burst_ratio"] >= 3.2 and features["peak_density"] >= 18, spans=windows[:2], reason="局部峰值密度显著高于中位密度")
+    if features["tap_ratio"] >= 0.68 and features["slide_ratio"] <= 0.09 and features["key_entropy"] >= 0.8 and features["nps"] >= 5:
+        add("散打", 0.55 + min(0.75, features["key_entropy"]), hard=features["burst_ratio"] >= 2.4 or features["nps"] >= 8.5, spans=windows[:2], reason="Tap 分散、键位熵高且缺少固定手型")
+    if features["jump"] / max(features["total"], 1.0) >= 0.10 and features["jump"] >= 30:
+        add("飞手", 0.55 + min(0.75, (features["jump"] / max(features["total"], 1.0) - 0.1) * 6), hard=features["jump"] >= 80 or features["window_zone_cross_peak"] >= 3, spans=windows[:2], reason="局部大跳键比例和数量达到阈值")
+
+    # Hand assignment violations are merged into 协调 per the XLS.
+    if features["zone_violation_count"] >= 6 or features["zone_violation_peak"] >= 4:
+        hand_score = 0.65 + min(0.75, features["zone_violation_count"] / 18.0 + features["zone_violation_ratio"])
+        add("协调", hand_score, hard=features["zone_violation_count"] >= 12 or features["zone_violation_peak"] >= 7, spans=windows[:2], reason="左右手默认分区被大量跨越，合并为协调/手序难点")
+
+    # Interaction family.
+    if features["axis_hits"] >= 3:
+        add("轴交互", 0.65 + min(0.7, features["axis_hits"] / 10.0), hard=features["axis_hits"] >= 6 or features["axis_duration"] >= features["two_measure_sec"] * 1.5, spans=windows[:2], reason="交替组中固定轴键至少重复三次")
+    if features["ladder_hits"] >= 1:
+        add("爬梯交互", 0.65 + min(0.7, features["ladder_hits"] / 6.0), hard=features["ladder_hits"] >= 3 or features["ladder_nps"] >= 8, spans=windows[:2], reason="键位按连续方向扩展或收缩形成完整爬梯")
+    if features["ordinary_interaction_hits"] >= 3:
+        ordinary_score = 0.55 + min(0.75, features["ordinary_interaction_hits"] / 20.0)
+        add("交互", ordinary_score, hard=features["ordinary_interaction_duration"] >= features["two_measure_sec"] * 2 or features["ordinary_interaction_non_tap"] >= 2, spans=windows[:2], reason="快速交替成立且没有被轴/爬梯/协调完全解释")
+    if features["short_stack_hot"] >= 4 or features["coord_disp"] >= 1:
+        add("协调", 0.7 + min(0.65, features["short_stack_hot"] / 16.0 + features["coord_disp"] / 8.0), hard=features["short_stack_hot"] >= 8 or features["coord_disp"] >= 3, spans=windows[:2], reason="短纵、大位移交互或难协调键型重复出现")
+    if features["stack_ratio"] >= 0.06 and features["stack"] >= 18:
+        add("纵连", 0.55 + min(0.75, features["stack_ratio"] * 6), hard=features["stack_duration"] >= features["two_measure_sec"] * 1.5 or features["bpm"] >= 190, spans=windows[:2], reason="连续纵向重复击打达到局部阈值")
+
+    # Sweep family and named patterns.
+    if features["sweep_max"] >= 3 or features["short_sweep_hits"] >= 1:
+        add("扫键", 0.55 + min(0.8, features["sweep_max"] / 12.0 + features["short_sweep_hits"] / 8.0), hard=features["circle_hits"] >= 1 or features["sweep_mixed_hits"] >= 3, spans=windows[:2], reason="同侧扫、短扫或转圈序列达到候选阈值")
+    if features["death_scythe_hits"] >= 1:
+        add("死镰", 0.75 + min(0.65, features["death_scythe_hits"] / 6.0), hard=features["death_scythe_hits"] >= 2, spans=windows[:2], reason="方向相反的 Slide 与连续 Tap 链同时成立")
+    if features["rulong_hits"] >= 1:
+        add("如龙", 0.75 + min(0.65, features["rulong_hits"] / 6.0), hard=features["rulong_hits"] >= 2, spans=windows[:2], reason="双押/半拍引导后形成同侧连续扫与换手")
+    if features["misalignment_hits"] >= 1:
+        add("错位", 0.65 + min(0.65, features["misalignment_hits"] / 5.0), hard=features["misalignment_hits"] >= 2 or features["misalignment_position_changes"] >= 2, spans=windows[:2], reason="Master 中双押引导与隔拍 Slide 启动形成错位")
+
+    if features["short_slides"] >= 12 and features["short_slide_ratio"] >= 0.35 and (bpm >= 180 or features["complex_slide_count"] >= 4):
+        add("留尾", 0.75 + min(0.65, features["short_slide_ratio"] + features["fast_large_span_slides"] / 12.0), hard=features["fast_large_span_slides"] >= 4 or features["complex_slide_count"] >= 8, spans=windows[:2], reason="高BPM秒划或复杂 Slide 出张达到留尾难点条件")
+    if features["short_slide_ratio"] >= 0.35 and features["short_slides"] >= 12 and features["slide_ratio"] >= 0.10:
+        add("防蹭", 0.55 + min(0.75, features["short_slide_ratio"]), hard=features["short_slides"] >= 28, spans=windows[:2], reason="大量短星带来跳区与邻近判定区误触风险")
+    if features["slide_overlap_peak"] >= 2 and bpm <= 160:
+        delayed_hard = features["slide_overlap_peak"] >= 3 or features["slide_overlap_count"] >= 8
+        add("延迟星星", 0.55 + min(0.65, features["slide_overlap_peak"] / 4.0), spans=windows[:2], reason="低 BPM 下同时存在多条 Slide，形成视觉时序延后候选")
+        add(
+            "拆弹",
+            0.72 + min(0.6, features["slide_overlap_peak"] / 4.0),
+            hard=delayed_hard,
+            candidate_tag="延迟星星",
+            spans=windows[:2],
+            reason="延迟星星候选达到同时多 Slide 的难点条件",
         )
-    ):
-        scores["管子"] = max(scores["管子"], tag_weight("管子") * 1.08)
-    if "双押" in scores and feat.get("dual_dense_run", 0) >= two_meas * 0.95:
-        scores["双押"] = max(scores["双押"], tag_weight("双押") * 1.08)
-    if "死镰" in scores and feat.get("death_scythe_hits", 0) >= 3:
-        scores["死镰"] = max(scores["死镰"], tag_weight("死镰") * 1.1)
-    if "如龙" in scores and feat.get("rulong_hits", 0) >= 2:
-        scores["如龙"] = max(scores["如龙"], tag_weight("如龙") * 1.08)
-    if "协调" in scores and (
-        (
-            feat.get("short_stack_hot", 0) >= 4
-            and feat.get("short_stack_distinct_hot", 0) >= 4
-        )
-        or feat.get("coord_disp", 0) >= 1
-    ):
-        scores["协调"] = max(scores["协调"], tag_weight("协调") * 1.05)
 
-    tags, selected = select_final_tags(scores)
-
-    forced: list[str] = []
-    if "管子" in scores and (
-        (
-            feat.get("hold_dense_run", 0) >= two_meas
-            and feat.get("hold_dense_peak", 0) >= 0.5
-            and feat.get("hold_dense_hot", 0) >= 2
-        )
-        or (
-            feat.get("hold_chain_max", 0) >= 5
-            and feat.get("hold_chain_span_max", 0) >= two_meas * 0.75
-        )
-    ):
-        forced.append("管子")
-    if "双押" in scores and feat.get("dual_dense_run", 0) >= two_meas and feat.get("dual_dense_peak", 0) >= 0.75:
-        forced.append("双押")
-    if "死镰" in scores and feat.get("death_scythe_hits", 0) >= 3:
-        forced.append("死镰")
-    if "如龙" in scores and feat.get("rulong_hits", 0) >= 3:
-        forced.append("如龙")
-    if "轴交互" in scores and feat.get("axis_hits", 0) >= 4:
-        forced.append("轴交互")
-    if "爬梯交互" in scores and feat.get("ladder_hits", 0) >= 1:
-        forced.append("爬梯交互")
-    if "协调" in scores and (
-        (
-            feat.get("short_stack_hot", 0) >= 4
-            and feat.get("short_stack_distinct_hot", 0) >= 4
-        )
-        or feat.get("coord_disp", 0) >= 1
-    ):
-        forced.append("协调")
-
-    if forced:
-        for tag in forced:
-            selected[tag] = max(
-                float(selected.get(tag, 0.0) or 0.0),
-                float(scores.get(tag, tag_weight(tag)) or tag_weight(tag)),
-            )
-        ordered: list[str] = []
-        for tag in forced + tags:
-            if tag not in ordered:
-                ordered.append(tag)
-        tags = ordered[:5]
-        selected = {tag: float(selected.get(tag, scores.get(tag, tag_weight(tag)))) for tag in tags}
-
-    conf = 0.0
-    if selected:
-        strengths = []
-        for tag, score in selected.items():
-            base = max(tag_weight(tag), 1e-6)
-            strengths.append(min(1.0, float(score) / base))
-        conf = sum(strengths) / max(len(strengths), 1)
-        distinctive = [t for t in tags if TAG_WEIGHTS.get(t, 0) >= 0.7]
-        generic = [t for t in tags if t in GENERIC_TAGS]
-        if distinctive:
-            conf = min(1.0, conf + 0.06 * min(3, len(distinctive)))
-        if tags and len(generic) == len(tags):
-            conf *= 0.72
-        conf = round(min(1.0, max(0.05, conf)), 4)
-
+    # The XLS removes the old separate 秒划/一笔划/手序/背谱 labels.
+    display_candidates = list(raw)
+    # 延迟星星 is the candidate name; only a difficult candidate is exposed as
+    # 拆弹, so the two names never appear together in the display layer.
+    if "拆弹" in difficult:
+        display_candidates = [tag for tag in display_candidates if tag != "延迟星星"]
+        display_candidates.append("拆弹")
     return {
-        "tags": tags,
-        "tag_scores": selected,
-        "features": feat,
-        "confidence": conf,
-        "ds": chart.ds,
-        "bpm": chart.bpm,
-        "level_index": chart.level_index,
-        "source": "maidata_structure",
+        "tags": filter_allowed_tags(display_candidates),
+        "raw_tags": filter_allowed_tags(raw),
+        "difficulty_tags": filter_allowed_tags(difficult),
+        "tag_scores": {tag: round(scores.get(tag, tag_weight(tag)), 6) for tag in filter_allowed_tags(display_candidates)},
+        "candidate_scores": {tag: round(value, 6) for tag, value in scores.items()},
+        "features": features,
+        "windows": windows[:20],
+        "tag_evidence": evidence,
+        "confidence": round(min(1.0, max(0.0, sum(scores.values()) / max(len(scores), 1))), 4),
+        "source": "local_xls_rule_engine",
+        "rule_version": 15,
+        "difficulty_caps": DIFFICULTY_CAPS,
     }
 
 
-def analyze_maidata_text(text: str, min_ds: float = 12.6) -> dict[str, Any]:
+def analyze_maidata_text(text: str, min_ds: float = 12.6, max_ds: float = 15.0) -> dict[str, Any]:
+    """Analyze all supported chart sections in one maidata document."""
+    from .maidata_parser import parse_maidata
+
     song = parse_maidata(text)
-    charts_out = {}
+    charts_out: dict[str, Any] = {}
     for level_index, chart in song.charts.items():
-        if chart.ds < min_ds:
-            continue
-        charts_out[str(level_index)] = analyze_chart_tags(chart)
+        if min_ds <= float(chart.ds or 0.0) <= max_ds:
+            charts_out[str(level_index)] = analyze_chart_tags(chart)
     return {
         "title": song.title,
         "artist": song.artist,
@@ -1033,6 +839,8 @@ def analyze_maidata_text(text: str, min_ds: float = 12.6) -> dict[str, Any]:
     }
 
 
-def analyze_maidata_file(path: str | Path, min_ds: float = 12.6) -> dict[str, Any]:
-    text = Path(path).read_text(encoding="utf-8", errors="ignore")
-    return analyze_maidata_text(text, min_ds=min_ds)
+def analyze_maidata_file(path: str | Path, min_ds: float = 12.6, max_ds: float = 15.0) -> dict[str, Any]:
+    return analyze_maidata_text(Path(path).read_text(encoding="utf-8-sig"), min_ds=min_ds, max_ds=max_ds)
+
+
+__all__ = ["analyze_chart_tags", "analyze_maidata_file", "analyze_maidata_text", "extract_features"]

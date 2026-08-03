@@ -1,8 +1,12 @@
 {
+  "version": 2,
   "status": "completed",
-  "analysis_engine": "codex_conversation_model",
-  "dataset_records": 100,
-  "best_epoch": 240,
-  "best_valid_loss": 0.27187529,
-  "updated_at": "2026-08-02T18:55:57+08:00"
+  "analysis_engine": "local_xls_rule_engine",
+  "rule_version": 15,
+  "dataset": "static/chart_tag_dataset.jsonl.gz",
+  "dataset_records": 1732,
+  "best_epoch": 220,
+  "best_valid_loss": 0.4757357,
+  "updated_at": "2026-08-03T09:07:46+08:00",
+  "report": "CHART_TAG_REPORT.md"
 }

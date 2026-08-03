@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-2.1.2-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-2.2.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -25,9 +25,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 - 移除别名投票、别名推送、机厅排卡
 - 增加水鱼 Import-Token 绑定、SGWCMAID 同步、吃分推荐、锐评人格 WebUI、谱面标签
 - `1.7.x`：`舞萌体检`、`舞萌初始化`、分层帮助、我的舞萌、目标推分与打卡；`1.7.2` 锐评含金量；`1.7.3` 标签权重
-- `2.0.0`：移除旧谱面模型接口，改为 Codex 对话内审计并保留完整可追溯训练元数据
-- `2.1.1`：合并 WebUI 谱面标签模块，修复自动打标请求鉴权与错误反馈
-- `2.1.2`：移除联网标签补缺和手动标签管理入口，谱面标签 WebUI 仅保留本地模型打标
+- `2.2.0`：按 XLS 规则全量重算 12.6 - 15.0 谱面，训练本地模型；标签按请求从 Levels 直接分析，不再保存运行时标签库，并新增插件日志模块
 
 > 纯净仓库不含完整 `static/mai/` 资源包，部署后需自备静态资源并执行初始化。
 
@@ -167,7 +165,7 @@ Import-Token 请用户自行 `绑定水鱼`，不要写进仓库。
 http://127.0.0.1:8796/?token=你的token
 ```
 
-用途：锐评人格、谱面标签（本地模型打标与结果检索）和配置摘要；谱面标签只在 WebUI 中操作，指令触发方式以 [`static/help.txt`](static/help.txt) 为准。
+用途：锐评人格、谱面标签、插件日志和配置摘要；谱面标签只在 WebUI 中操作，指令触发方式以 [`static/help.txt`](static/help.txt) 为准。
 监听非本机地址时必须配置 Token。
 
 ### WebUI 谱面标签
@@ -176,11 +174,12 @@ http://127.0.0.1:8796/?token=你的token
 
 - 按 `10.0 - 15.0` 定数范围下载 OneCat 官谱，默认 `12.6 - 15.0`；支持全部下载、仅未下载和搜索下载。
 - 只保存谱面 `.txt` 到 `static/Levels`，不保存 BGA、音频、宴谱或其他资源，并按谱面内的 `&shortid` 与 `&title` 命名。
-- 使用 `static/maimai_chart_tag_model.npz` 执行强制重算或新谱计算，默认分析 `12.6 - 15.0` 的 Expert / Master / Re:Master。
-- 按 ID、曲名、艺术家、谱师或定数查看本地模型标签、概率、分析窗口和来源映射。
+- 使用 `static/maimai_chart_tag_model.npz` 执行强制重算或新谱计算；标签分析范围固定为 `12.6 - 15.0` 的 Expert / Master / Re:Master。
+- 按 ID、曲名、艺术家、谱师或定数查看本地模型标签、概率、分析窗口和运行时来源映射。
 - 下载任务会在 OneCat 完成筛选后显示候选歌曲总数、当前处理数和当前谱面；任务启动阶段会先显示等待筛选状态。
+- “插件日志”页只展示本插件日志，支持级别筛选、关键词筛选、自动刷新和清空。
 
-标签库的每个本地条目都保留 `mapping`：`tag_file` / `tag_file_key` 明确标签文件及其 `shortid:level_index` 键，`diff_id` 对应谱面中的 `&inote_N`，并同时记录 `static/Levels` 相对路径、源文件 SHA-256、曲名、艺术家、定数、BPM、谱师和 `mapping_id`。顶层 `chart_mapping` 可由标签 key 反查谱面，`chart_file_mapping` 可由一个谱面文件列出其中所有难度和对应标签 key；详情接口还会返回同文件的完整难度索引。下载完成后会先创建待分析条目，分析结果写回同一条目，不依赖文件名猜测曲目。
+谱面标签不保存为静态标签库。每次请求先按 `shortid:level_index` 在 `static/Levels` 中找到 `shortid_title.txt`，解析对应的 `&inote_<diff_id>`，再交给本地模型；返回结果只保留在当前进程内存中。映射同时携带文件相对路径、文件 SHA-256、曲名、艺术家、定数、BPM、谱师和 `mapping_id`，不会依赖文件名猜测难度。
 
 ## 谱面标签模型
 
@@ -188,9 +187,9 @@ http://127.0.0.1:8796/?token=你的token
 
 ### 本地模型谱面审计
 
-训练元数据直接读取插件内的 `static/Levels`，只分析 `lv_4`、`lv_5`、`lv_6` 中定数不低于 `12.6` 的难度。WebUI 谱面标签使用已训练的本地模型，不调用 AstrBot 谱面模型；OneCat 仅用于下载谱面文件。
+训练元数据直接读取插件内的 `static/Levels`，只分析 `lv_4`、`lv_5`、`lv_6` 中定数 `12.6 - 15.0` 的难度。WebUI、吃分推荐和锐评 B50 的谱面标签都使用同一个本地模型；OneCat 仅用于下载谱面文件。
 
-Codex 对本地解析出的连续两小节窗口进行复核，输出最多 5 个主要标签，并为每个标签保存窗口、事件原始语法或撞尾候选位置。普通 Slide 星头不会进入如龙、爬梯交互和协调序列；爬梯、协调、管子、跳拍和如龙还要通过局部结构门槛。数据集保留完整 `inote`、事件序列、BPM 变化、定数、文件 SHA-256、排除的 Ex 目标和被拒绝的候选标签，便于逐条审阅。
+规则引擎按 XLS 的候选特征、难点特征和同定数占比上限工作，使用连续两小节局部窗口，输出最多 5 个主要标签，并为每个标签保存窗口、事件原始语法或撞尾候选位置。数据集保留完整 `inote`、事件序列、BPM 变化、定数、文件 SHA-256、排除的 Ex 目标和标签位置，便于逐条审阅。
 
 撞尾依据三篇撞尾/无理配置文章和 [simai 语法说明](https://w.atwiki.jp/simai/pages/1002.html)：以目标时间减去 Slide 进入路径区域时间的有符号 `delta` 判定，危险范围为 `[-0.05s, +0.20s]`；`delta=0` 为绝对撞尾，`0<delta<=0.15s` 为硬撞尾，两侧边缘为软撞尾；最后 A 区覆盖到 Slide 结束并保留后 0.20 秒。原始语法含 `x` 的 Ex 目标单独记录并排除，孤立软边界不直接打标。
 
@@ -200,9 +199,9 @@ Codex 对本地解析出的连续两小节窗口进行复核，输出最多 5 �
 PYTHONPATH=.. python3 -m astrbot_plugin_maimaidx.libraries.chart_tags.training_dataset
 ```
 
-产物：`static/chart_tag_sample_manifest.json`、`static/chart_tag_dataset.jsonl`、`static/chart_tag_review.json`、`static/chart_tag_loss.json`、`static/maimai_chart_tag_model.npz`、`static/maimai_chart_tag_model.json` 和 [`CHART_TAG_REPORT.md`](CHART_TAG_REPORT.md)。报告包含原始/最终标签使用率和 100 个谱面的逐条打标情况；WebUI 谱面标签使用该模型，并将结果写入正式标签文件的 `model_tags`。
+产物：`static/chart_tag_manifest.json`、`static/chart_tag_dataset.jsonl.gz`、`static/chart_tag_audit.json.gz`、`static/chart_tag_loss.json`、`static/chart_tag_training_run.json`、`static/maimai_chart_tag_model.npz`、`static/maimai_chart_tag_model.json` 和 [`CHART_TAG_REPORT.md`](CHART_TAG_REPORT.md)。压缩文件保留完整训练记录，报告包含候选/最终标签使用率和全部有效难度的逐谱面标注。
 
-本地模型分析结果写入 `model_tags` 并合并到 `final_tags`，正式标签文件同时保留谱面文件、谱面信息和映射关系；当前 WebUI 不提供联网补缺或手动标签编辑入口。
+`static/Levels` 由管理员第一次使用 WebUI 时手动下载，不随仓库提交；训练元数据和模型文件可以提交到仓库。运行时只按谱面文件即时生成标签结果，不保存标签库。
 
 ## 数据与安全
 
@@ -212,6 +211,12 @@ PYTHONPATH=.. python3 -m astrbot_plugin_maimaidx.libraries.chart_tags.training_d
 | `static/user_import_tokens.json` | 用户 Import-Token | 否 |
 | `static/arcade_credentials.json` | 机台凭据 | 否 |
 | `static/user_practice_log.json` | 练习打卡 | 否 |
+| `static/Levels/` | WebUI 下载的本地谱面输入 | 否 |
+| `static/chart_tag_manifest.json` | 全量谱面与文件映射清单 | 是 |
+| `static/chart_tag_dataset.jsonl.gz` | 含完整谱面内容、事件、窗口、标签位置的训练元数据 | 是 |
+| `static/chart_tag_audit.json.gz` | 全量审计记录与标签使用率 | 是 |
+| `static/chart_tag_loss.json` / `static/chart_tag_training_run.json` | Loss 曲线、验证结果与训练记录 | 是 |
+| `static/maimai_chart_tag_model.*` | 本地标签模型及元数据 | 是 |
 | `static/mai/` | 曲绘与表图资源 | 完整包不建议提交 |
 
 - Developer-Token 走插件配置，不要写死仓库

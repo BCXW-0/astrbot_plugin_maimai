@@ -57,7 +57,6 @@ def sort_tags_by_weight(tags: Iterable[str], scores: Mapping[str, float] | None 
 
 def select_final_tags(
     scores: Mapping[str, Any] | None,
-    manual_tags: Iterable[str] | None = None,
     *,
     max_tags: int = MAX_FINAL_TAGS,
 ) -> tuple[list[str], dict[str, float]]:
@@ -65,7 +64,6 @@ def select_final_tags(
     按综合分选取最终标签。
     返回 (final_tags 降序, 选中标签的分数映射)。
     """
-    manual = filter_allowed_tags(manual_tags or [])
     cleaned: dict[str, float] = {}
     for raw_tag, raw_score in (scores or {}).items():
         tag = normalize_tag(str(raw_tag))
@@ -79,9 +77,6 @@ def select_final_tags(
             continue
         cleaned[tag] = max(cleaned.get(tag, 0.0), score)
 
-    for tag in manual:
-        cleaned[tag] = max(cleaned.get(tag, 0.0), tag_weight(tag) * 1.25)
-
     if not cleaned:
         return [], {}
 
@@ -90,7 +85,7 @@ def select_final_tags(
     candidates = [
         (tag, score)
         for tag, score in cleaned.items()
-        if score >= floor or tag in manual
+        if score >= floor
     ]
     candidates.sort(key=lambda item: (-item[1], -tag_weight(item[0]), item[0]))
 
@@ -102,7 +97,6 @@ def select_final_tags(
         if (
             is_generic
             and distinctive >= 2
-            and tag not in manual
             and score < max_score * 0.55
         ):
             continue
@@ -114,17 +108,6 @@ def select_final_tags(
         if len(selected) >= max_tags:
             break
 
-    for tag in manual:
-        if tag not in selected:
-            selected.append(tag)
     selected = selected[: max(1, max_tags)] if selected else []
-    # 最终再按分数排序（manual 插入可能打乱）
     selected = sort_tags_by_weight(selected, cleaned)
     return selected, {tag: round(cleaned.get(tag, tag_weight(tag)), 4) for tag in selected}
-
-
-def scores_from_tag_list(tags: Iterable[str], base_scale: float = 1.0) -> dict[str, float]:
-    result: dict[str, float] = {}
-    for tag in filter_allowed_tags(tags):
-        result[tag] = round(tag_weight(tag) * base_scale, 4)
-    return result

@@ -13,6 +13,7 @@ from .arcade_credential_manager import get_arcade_credential_manager
 from .chart_tags.auto_tagger import AutoTagJob
 from .chart_tags.constants import ALLOWED_TAGS
 from .maimaidx_api_data import maiApi
+from .plugin_log import clear_plugin_logs, get_plugin_logs, install_plugin_log_capture
 from .roast.llm_client import resolve_roast_provider_id
 from .roast_persona_manager import RoastPersonaManager
 from .user_token_manager import get_token_manager
@@ -47,6 +48,7 @@ class RoastPersonaWebUI:
         self.start_task: asyncio.Task | None = None
         self.assets_dir = Root / "static" / "plugin_webui"
         self.local_tag_job = AutoTagJob()
+        install_plugin_log_capture(log)
 
     async def start(self) -> None:
         if self.runner:
@@ -64,6 +66,8 @@ class RoastPersonaWebUI:
         app.router.add_post("/api/chart_tags/stop", self.chart_tags_stop)
         app.router.add_get("/api/chart_tags/search", self.chart_tags_search)
         app.router.add_get("/api/chart_tags/{key}", self.chart_tags_get)
+        app.router.add_get("/api/logs", self.plugin_logs)
+        app.router.add_post("/api/logs/clear", self.clear_plugin_logs)
         app.router.add_get("/api/personas", self.list_personas)
         app.router.add_post("/api/persona", self.save_persona)
         app.router.add_post("/api/import_json", self.import_json)
@@ -374,6 +378,31 @@ button:hover {{ background: #2447c4; }}
         if item is None:
             return web.json_response({"ok": False, "message": "谱面不存在"}, status=404)
         return web.json_response({"ok": True, "item": item, "allowed_tags": ALLOWED_TAGS})
+
+    async def plugin_logs(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        limit, error = self._parse_int_param(request.query.get("limit"), default=200)
+        if error:
+            return web.json_response({"ok": False, "message": f"limit {error}"}, status=400)
+        try:
+            entries = await asyncio.to_thread(
+                get_plugin_logs,
+                limit=limit or 200,
+                level=request.query.get("level", ""),
+                since=request.query.get("since", ""),
+                query=request.query.get("q", ""),
+            )
+        except Exception as exc:
+            log.error(f"插件日志读取失败: {type(exc).__name__} - {exc}")
+            return web.json_response({"ok": False, "message": "插件日志读取失败"}, status=500)
+        return web.json_response({"ok": True, "entries": entries, "max_records": 500})
+
+    async def clear_plugin_logs(self, request: web.Request) -> web.Response:
+        if not self._check_auth(request):
+            return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
+        await asyncio.to_thread(clear_plugin_logs)
+        return web.json_response({"ok": True, "message": "插件日志已清空"})
 
     async def save_persona(self, request: web.Request) -> web.Response:
         if not self._check_auth(request):

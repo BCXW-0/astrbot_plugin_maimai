@@ -26,9 +26,16 @@ const modal = $('personaModal');
 const modalList = $('personaModalList');
 const autoDownloadModal = $('autoDownloadModal');
 const autoAnalyzeModal = $('autoAnalyzeModal');
+const logsBox = $('logsBox');
+const logLevel = $('logLevel');
+const logQuery = $('logQuery');
+const logAutoRefresh = $('logAutoRefresh');
 let pendingForce = false;
 let cachedPersonas = [];
 let autoStatusTimer = null;
+let autoStatusRequestActive = false;
+let logsTimer = null;
+let logsRequestActive = false;
 
 function accessToken() {
   return new URLSearchParams(window.location.search).get('token') || '';
@@ -154,19 +161,22 @@ function renderAutoTagsStatus(data) {
 }
 
 async function loadAutoTagsStatus() {
-  if (!autoTagsStatusBox) return;
-  const data = await jsonFetch('/api/chart_tags/status');
-  if (!data.ok) {
-    autoModelBadge.textContent = '接口不可用';
-    autoTagsStatusBox.innerHTML = '<div class="empty">' + escapeHtml(data.message || '本地模型状态加载失败') + '</div>';
-    return data;
-  }
-  renderAutoTagsStatus(data);
-  if (data.running) {
+  if (!autoTagsStatusBox || autoStatusRequestActive) return;
+  autoStatusRequestActive = true;
+  try {
+    const data = await jsonFetch('/api/chart_tags/status');
+    if (!data.ok) {
+      autoModelBadge.textContent = '接口不可用';
+      autoTagsStatusBox.innerHTML = '<div class="empty">' + escapeHtml(data.message || '本地模型状态加载失败') + '</div>';
+      return data;
+    }
+    renderAutoTagsStatus(data);
     clearTimeout(autoStatusTimer);
-    autoStatusTimer = setTimeout(loadAutoTagsStatus, 1600);
+    autoStatusTimer = data.running ? setTimeout(loadAutoTagsStatus, 1600) : null;
+    return data;
+  } finally {
+    autoStatusRequestActive = false;
   }
-  return data;
 }
 
 function openAutoModal(target) {
@@ -276,7 +286,7 @@ function renderAutoTagDetail(item) {
   autoTagDetailBox.className = '';
   autoTagDetailBox.innerHTML = '<div class="chart-editor-head"><div><h4></h4><p class="muted"></p></div><span class="badge"></span></div>' +
     '<div class="auto-tag-list">' + (tags.length ? tags.map(tag => '<span>' + escapeHtml(tag) + '</span>').join('') : '<span>无模型标签</span>') + '</div>' +
-    '<div class="auto-detail-grid"><div><span class="muted">艺术家</span><b>' + escapeHtml(item.artist || '未知') + '</b></div><div><span class="muted">谱师</span><b>' + escapeHtml(item.charter || '未知') + '</b></div><div><span class="muted">定数 / BPM</span><b>' + escapeHtml(item.ds ?? '未知') + ' / ' + escapeHtml(item.bpm ?? '未知') + '</b></div><div><span class="muted">最终标签</span><b>' + escapeHtml(tagText(item.final_tags)) + '</b></div><div><span class="muted">模型概率 Top 10</span><b>' + probabilityText + '</b></div><div><span class="muted">标签文件键</span><b>' + escapeHtml(item.key || '未知') + '</b></div><div><span class="muted">映射 / 谱面段</span><b>' + escapeHtml((mapping.mapping_id || item.mapping_id || '') + ' · ' + (mapping.chart_section || item.chart_section || '')) + '</b></div><div><span class="muted">谱面文件</span><b>' + escapeHtml(mapping.chart_file || item.chart_file || item.source_file || item.source_path || '未知') + '</b></div><div><span class="muted">文件 SHA-256</span><b>' + escapeHtml(mapping.chart_file_sha256 || item.source_sha256 || '未知') + '</b></div><div><span class="muted">同文件难度</span><b>' + escapeHtml((fileMapping.chart_sections || []).map(section => section.tag_file_key + ' · ' + section.chart_section).join(' / ') || '未知') + '</b></div></div>' +
+    '<div class="auto-detail-grid"><div><span class="muted">艺术家</span><b>' + escapeHtml(item.artist || '未知') + '</b></div><div><span class="muted">谱师</span><b>' + escapeHtml(item.charter || '未知') + '</b></div><div><span class="muted">定数 / BPM</span><b>' + escapeHtml(item.ds ?? '未知') + ' / ' + escapeHtml(item.bpm ?? '未知') + '</b></div><div><span class="muted">最终标签</span><b>' + escapeHtml(tagText(item.final_tags)) + '</b></div><div><span class="muted">模型概率 Top 10</span><b>' + probabilityText + '</b></div><div><span class="muted">运行时映射</span><b>' + escapeHtml((mapping.mapping_id || item.mapping_id || '') + ' · ' + (mapping.chart_section || item.chart_section || '')) + '</b></div><div><span class="muted">谱面文件</span><b>' + escapeHtml(mapping.chart_file || item.chart_file || item.source_file || item.source_path || '未知') + '</b></div><div><span class="muted">文件 SHA-256</span><b>' + escapeHtml(mapping.chart_file_sha256 || item.source_sha256 || '未知') + '</b></div><div><span class="muted">同文件难度</span><b>' + escapeHtml((fileMapping.chart_sections || []).map(section => (section.tag_key || section.mapping_id || '') + ' · ' + section.chart_section).join(' / ') || '未知') + '</b></div></div>' +
     '<details class="evidence-box"><summary>查看分析窗口</summary><pre class="auto-code"></pre></details>';
   autoTagDetailBox.querySelector('h4').textContent = item.title || item.key;
   autoTagDetailBox.querySelector('.chart-editor-head .muted').textContent = item.song_id + ' · ' + item.difficulty + ' · ' + item.level;
@@ -293,6 +303,67 @@ async function loadAutoTagDetail(key) {
     return;
   }
   renderAutoTagDetail(data.item);
+}
+
+function renderLogs(entries) {
+  if (!logsBox) return;
+  if (!entries.length) {
+    logsBox.innerHTML = '<div class="empty">暂无匹配日志</div>';
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  entries.forEach(entry => {
+    const row = document.createElement('div');
+    row.className = 'log-entry log-' + String(entry.level || 'INFO').toLowerCase();
+    const head = document.createElement('div');
+    head.className = 'log-entry-head';
+    const level = document.createElement('b');
+    level.textContent = entry.level || 'INFO';
+    const time = document.createElement('time');
+    time.textContent = entry.timestamp || '';
+    head.append(level, time);
+    const message = document.createElement('pre');
+    message.textContent = entry.message || '';
+    const source = document.createElement('small');
+    source.textContent = (entry.logger || '') + (entry.source ? ' · ' + entry.source : '');
+    row.append(head, message, source);
+    fragment.appendChild(row);
+  });
+  logsBox.innerHTML = '';
+  logsBox.appendChild(fragment);
+}
+
+async function loadLogs() {
+  if (!logsBox || logsRequestActive) return;
+  logsRequestActive = true;
+  try {
+    const query = logQuery?.value.trim() || '';
+    const level = logLevel?.value || '';
+    const data = await jsonFetch('/api/logs?limit=300&level=' + encodeURIComponent(level) + '&q=' + encodeURIComponent(query));
+    if (!data.ok) {
+      logsBox.innerHTML = '<div class="empty">' + escapeHtml(data.message || '日志读取失败') + '</div>';
+      return;
+    }
+    renderLogs(data.entries || []);
+  } finally {
+    logsRequestActive = false;
+  }
+}
+
+function updateLogTimer() {
+  clearTimeout(logsTimer);
+  logsTimer = null;
+  if (!logAutoRefresh?.checked || !$('logs')?.classList.contains('active')) return;
+  logsTimer = setTimeout(async () => {
+    await loadLogs();
+    updateLogTimer();
+  }, 2500);
+}
+
+async function clearLogs() {
+  const data = await jsonFetch('/api/logs/clear', { method: 'POST' });
+  showToast(data.message || (data.ok ? '插件日志已清空' : '日志清空失败'));
+  await loadLogs();
 }
 
 function tagText(tags) {
@@ -526,7 +597,7 @@ async function importJson() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadOverview(), loadCommands(), loadConfig(), loadList(), loadAutoTagsStatus(), searchAutoTags()]);
+  await Promise.all([loadOverview(), loadCommands(), loadConfig(), loadList(), loadAutoTagsStatus(), searchAutoTags(), loadLogs()]);
 }
 
 function openPersonaModal() {
@@ -545,6 +616,13 @@ document.querySelectorAll('.nav').forEach(btn => btn.addEventListener('click', (
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   $(btn.dataset.tab).classList.add('active');
+  if (btn.dataset.tab === 'logs') {
+    loadLogs();
+    updateLogTimer();
+  } else {
+    clearTimeout(logsTimer);
+    logsTimer = null;
+  }
 }));
 
 saveBtn.addEventListener('click', savePersona);
@@ -575,6 +653,16 @@ $('autoSearchInput').addEventListener('keydown', event => {
   }
 });
 $('autoSearchDs').addEventListener('change', searchAutoTags);
+logLevel.addEventListener('change', loadLogs);
+logQuery.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    loadLogs();
+  }
+});
+logAutoRefresh.addEventListener('change', updateLogTimer);
+$('refreshLogsBtn').addEventListener('click', () => withLoading($('refreshLogsBtn'), loadLogs));
+$('clearLogsBtn').addEventListener('click', () => withLoading($('clearLogsBtn'), clearLogs));
 document.querySelectorAll('input[name="downloadMode"]').forEach(input => input.addEventListener('change', setDownloadModeVisibility));
 ['downloadMinDs', 'downloadMaxDs'].forEach(id => $(id).addEventListener('input', () => updateRangeLabels('downloadMinDs', 'downloadMaxDs', 'downloadMinDsValue', 'downloadMaxDsValue')));
 ['analyzeMinDs', 'analyzeMaxDs'].forEach(id => $(id).addEventListener('input', () => updateRangeLabels('analyzeMinDs', 'analyzeMaxDs', 'analyzeMinDsValue', 'analyzeMaxDsValue')));
