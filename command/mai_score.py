@@ -51,7 +51,7 @@ async def bind_token_handler(event: AstrMessageEvent):
     token = message_str.replace('/绑定水鱼', '').replace('绑定水鱼', '').strip()
     
     if not token:
-        yield event.plain_result('请提供水鱼查分器 Import-Token\n\n用法：绑定水鱼 <token>（建议私聊）\n位置：水鱼查分器 -> 编辑个人资料 -> 成绩上传 token\n\n新手可先发：新手入门')
+        yield event.plain_result('请提供水鱼查分器 Import-Token\n\n用法：绑定水鱼 <token>（建议私聊）\n位置：水鱼查分器 -> 编辑个人资料 -> 成绩上传 token')
         return
     
     from ..libraries.user_token_manager import get_token_manager

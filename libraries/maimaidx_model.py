@@ -176,21 +176,6 @@ class PlanInfo(BaseModel):
     unfinished: Union[PlayInfoDefault, PlayInfoDev] = None
 
 
-class RiseScore(BaseModel):
-    
-    song_id: int
-    title: str
-    type: str
-    level_index: int
-    ds: float
-    ra: int
-    rate: str
-    achievements: float
-    oldra: Optional[int] = 0
-    oldrate: Optional[str] = 'D'
-    oldachievements: Optional[float] = 0
-
-
 ##### Dev
 class UserInfoDev(_UserInfo):
     

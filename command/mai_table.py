@@ -1,11 +1,10 @@
 import re
-from re import Match
 
 import astrbot.api.message_components as Comp
 
 from astrbot.api.event import AstrMessageEvent
 
-from .. import comboRank, combo_rank, levelList, log, platecn, scoreRank, syncRank, is_reply_enabled
+from .. import comboRank, combo_rank, levelList, platecn, scoreRank, syncRank, is_reply_enabled
 from ..command.mai_base import convert_message_segment_to_chain, extract_at_qqid
 from ..libraries.maimaidx_music_info import (
     draw_plate_table,
@@ -16,7 +15,6 @@ from ..libraries.maimaidx_player_score import (
     level_achievement_list_data,
     level_process_data,
     player_plate_data,
-    rise_score_data,
 )
 
 
@@ -93,45 +91,6 @@ async def table_pfm_handler(event: AstrMessageEvent):
     else:
         yield event.plain_result('无法识别的表格')
 
-
-async def rise_score_handler(event: AstrMessageEvent):
-    """我要在x+上x分命令处理"""
-    qqid = event.get_sender_id()
-    message_str = event.message_str.strip()
-    
-    # 检查是否有 @ 消息
-    at_qqid = extract_at_qqid(event)
-    if at_qqid:
-        qqid = at_qqid
-    
-    # 匹配正则表达式
-    match = re.match(r'^我要在?([0-9]+\+?)?[上加\+]([0-9]+)?分\s?(.+)?', message_str)
-    username = None
-    score = 0
-    
-    if not match:
-        rating = None
-        score = None
-    else:
-        rating = match.group(1)
-        if match.group(2):
-            score = int(match.group(2))
-    
-    if rating and rating not in levelList:
-        yield event.plain_result('无此等级')
-        return
-    
-    if match and match.group(3):
-        username = match.group(3).strip()
-    if username:
-        qqid = None
-        
-    data = await rise_score_data(qqid, username, rating, score)
-    chain = convert_message_segment_to_chain(data)
-    if is_reply_enabled():
-        chain.insert(0, Comp.Reply(id=event.message_obj.message_id))
-    yield event.chain_result(chain)
-    
 
 async def plate_process_handler(event: AstrMessageEvent):
     """牌子进度命令处理"""

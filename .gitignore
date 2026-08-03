@@ -216,7 +216,6 @@ static/music_alias.json
 static/local_music_alias.json
 static/plate_id.json
 static/user_import_tokens.json
-static/user_practice_log.json
 static/arcade_credentials.json
 static/roast_personas.json
 static/webui_config_overrides.json

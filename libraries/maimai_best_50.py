@@ -40,7 +40,6 @@ class ScoreBaseImage:
     id_diff = [Image.new('RGBA', (55, 10), color) for color in bg_color]
     
     _diff = []
-    _rise = []
     title_bg = None
     title_lengthen_bg = None
     design_bg = None
@@ -63,13 +62,6 @@ class ScoreBaseImage:
             maimai_pic('b50_score_expert.png'),
             maimai_pic('b50_score_master.png'),
             maimai_pic('b50_score_remaster.png')
-        ]
-        cls._rise = [
-            maimai_pic('rise_score_basic.png'),
-            maimai_pic('rise_score_advanced.png'),
-            maimai_pic('rise_score_expert.png'),
-            maimai_pic('rise_score_master.png'),
-            maimai_pic('rise_score_remaster.png')
         ]
         cls.title_bg = maimai_pic('title.png')
         cls.title_lengthen_bg = maimai_pic('title-lengthen.png')
@@ -97,13 +89,6 @@ class ScoreBaseImage:
             maimai_pic('b50_score_expert.png'),
             maimai_pic('b50_score_master.png'),
             maimai_pic('b50_score_remaster.png')
-        ]
-        self._rise = [
-            maimai_pic('rise_score_basic.png'),
-            maimai_pic('rise_score_advanced.png'),
-            maimai_pic('rise_score_expert.png'),
-            maimai_pic('rise_score_master.png'),
-            maimai_pic('rise_score_remaster.png')
         ]
         self.title_bg = maimai_pic('title.png')
         self.title_lengthen_bg = maimai_pic('title-lengthen.png')

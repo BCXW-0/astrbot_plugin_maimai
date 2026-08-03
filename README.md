@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-2.2.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-2.3.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -24,8 +24,9 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 - 保留查歌 / 查分 / B50 / 定数表 / 完成表 / 猜歌
 - 移除别名投票、别名推送、机厅排卡
 - 增加水鱼 Import-Token 绑定、SGWCMAID 同步、吃分推荐、锐评人格 WebUI、谱面标签
-- `1.7.x`：`舞萌体检`、`舞萌初始化`、分层帮助、我的舞萌、目标推分与打卡；`1.7.2` 锐评含金量；`1.7.3` 标签权重
+- `1.7.x`：`舞萌体检`、`舞萌初始化`、分层帮助和我的舞萌；`1.7.2` 锐评含金量；`1.7.3` 标签权重
 - `2.2.0`：按 XLS 规则全量重算 12.6 - 15.0 谱面，训练本地模型；标签按请求从 Levels 直接分析，不再保存运行时标签库，并新增插件日志模块
+- `2.3.0`：清理不再维护的成长辅助、目标查询和本地记录功能，保留吃分推荐的目标 Rating 参数
 
 > 纯净仓库不含完整 `static/mai/` 资源包，部署后需自备静态资源并执行初始化。
 
@@ -105,7 +106,6 @@ Import-Token 请用户自行 `绑定水鱼`，不要写进仓库。
 |:----:|:-----|
 | `帮助` / `help` | 高频帮助 + 可选帮助图 |
 | `帮助 查分/推分/同步/猜歌/管理` | 分层说明 |
-| `新手入门` | 绑定与首次使用引导 |
 | `我的舞萌` | Rating、B35/B15、绑定、下一首建议 |
 | `今日舞萌` / `jrys` | 今日运势 |
 | `来个13+` / `mai什么` | 随机 / 推分语义推荐 |
@@ -128,15 +128,11 @@ Import-Token 请用户自行 `绑定水鱼`，不要写进仓库。
 | `分数线` / Rating 计算 | 容错与分数换算 |
 | `查看排名` / `我的排名` | 公开榜 |
 
-### 推分与练习
+### 推分
 
 | 命令 | 说明 |
 |:----:|:-----|
 | `吃分推荐` [目标] | 智能吃分，可带目标 Rating |
-| `冲 15000` / `冲分 15000` | 按目标推分 |
-| `今日推分` / `今日3首` | 今日练习清单 |
-| `打卡 <ID>` / `练习记录` | 本地练习打卡 |
-| `我要在13+上10分` | 按等级找可涨分谱 |
 | `祭将进度` 等 | 牌子 / 等级进度 |
 | `13+定数表` / `祭将完成表` | 表图查询（需先初始化生成） |
 | `锐评b50` | LLM 锐评（水鱼拟合定数含金量 + 圈内黑话） |
@@ -210,7 +206,6 @@ PYTHONPATH=.. python3 -m astrbot_plugin_maimaidx.libraries.chart_tags.training_d
 | `static/music_*.json` | 曲库 / 谱面 / 别名缓存 | 否 |
 | `static/user_import_tokens.json` | 用户 Import-Token | 否 |
 | `static/arcade_credentials.json` | 机台凭据 | 否 |
-| `static/user_practice_log.json` | 练习打卡 | 否 |
 | `static/Levels/` | WebUI 下载的本地谱面输入 | 否 |
 | `static/chart_tag_manifest.json` | 全量谱面与文件映射清单 | 是 |
 | `static/chart_tag_dataset.jsonl.gz` | 含完整谱面内容、事件、窗口、标签位置的训练元数据 | 是 |

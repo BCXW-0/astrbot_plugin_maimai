@@ -204,12 +204,9 @@ button:hover {{ background: #2447c4; }}
             return web.json_response({"ok": False, "message": "Forbidden"}, status=403)
         commands = [
             {"command": "帮助 / help [主题]", "description": "高频帮助；主题可选 查分/推分/同步/猜歌/管理。"},
-            {"command": "新手入门", "description": "绑定与首次使用三步引导。"},
             {"command": "我的舞萌", "description": "Rating、B35/B15、绑定状态与下一首建议。"},
             {"command": "b50 [用户名或@用户]", "description": "查询 Best 50 成绩图。"},
-            {"command": "吃分推荐 [目标Rating] / 冲 <Rating>", "description": "智能吃分；可指定目标 Rating。"},
-            {"command": "今日推分 / 今日3首", "description": "生成今日练习清单。"},
-            {"command": "打卡 <歌曲ID> / 练习记录", "description": "本地练习打卡与记录。"},
+            {"command": "吃分推荐 [目标Rating]", "description": "智能吃分；可指定目标 Rating。"},
             {"command": "锐评b50 [风格或补充需求]", "description": "拉取 B50 并调用 LLM 生成锐评图。"},
             {"command": "绑定水鱼 <Import-Token>", "description": "绑定个人水鱼 Import-Token（建议私聊）。"},
             {"command": "更新b50 <SGWCMAID> / 导", "description": "机台成绩同步到水鱼。"},
