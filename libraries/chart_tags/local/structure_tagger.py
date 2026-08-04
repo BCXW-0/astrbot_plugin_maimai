@@ -68,8 +68,11 @@ def _measure_seconds(bpm: float) -> float:
 def _cv(values: list[float]) -> float:
     if len(values) < 3:
         return 0.0
-    average = statistics.mean(values)
-    return statistics.pstdev(values) / average if average > 1e-9 else 0.0
+    average = math.fsum(values) / len(values)
+    if average <= 1e-9:
+        return 0.0
+    variance = math.fsum((value - average) ** 2 for value in values) / len(values)
+    return math.sqrt(variance) / average
 
 
 def _side(number: int) -> int:
@@ -116,8 +119,13 @@ def _sequence_text(groups: list[dict[str, Any]], start: float) -> str:
     return "; ".join(tokens)[:1600]
 
 
-def _window_stats(chart: MaidataChart) -> tuple[list[dict[str, Any]], dict[str, float]]:
-    groups = _group_events(chart)
+def _window_stats(
+    chart: MaidataChart,
+    *,
+    include_evidence: bool = True,
+    groups: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, float]]:
+    groups = groups if groups is not None else _group_events(chart)
     if not groups:
         return [], {"two_measure_sec": 0.0}
     times = [float(group["time"]) for group in groups]
@@ -147,7 +155,11 @@ def _window_stats(chart: MaidataChart) -> tuple[list[dict[str, Any]], dict[str, 
             "end": round(times[left] + duration, 6),
             "bpm": round(bpm, 3),
             "duration": round(duration, 6),
-            "event_indexes": [index for item in groups[left:right] for index in item["indexes"]],
+            "event_indexes": (
+                [index for item in groups[left:right] for index in item["indexes"]]
+                if include_evidence
+                else []
+            ),
             "onset_count": count,
             "event_count": sum(len(item["events"]) for item in groups[left:right]),
             "multi_ratio": multi / count,
@@ -155,7 +167,7 @@ def _window_stats(chart: MaidataChart) -> tuple[list[dict[str, Any]], dict[str, 
             "slide_ratio": slides / count,
             "zone_cross": zone_cross,
             "density": density,
-            "sequence": _sequence_text(groups[left:right], times[left]),
+            "sequence": _sequence_text(groups[left:right], times[left]) if include_evidence else "",
         }
         if count >= 4:
             windows.append(entry)
@@ -195,9 +207,13 @@ def _window_stats(chart: MaidataChart) -> tuple[list[dict[str, Any]], dict[str, 
     return windows, summary
 
 
-def _tap_sequence(chart: MaidataChart) -> list[tuple[float, int, int]]:
+def _tap_sequence(
+    chart: MaidataChart,
+    *,
+    groups: list[dict[str, Any]] | None = None,
+) -> list[tuple[float, int, int]]:
     sequence: list[tuple[float, int, int]] = []
-    for group in _group_events(chart):
+    for group in (groups if groups is not None else _group_events(chart)):
         taps = [event for event in group["events"] if _is_tap(event)]
         for event in taps:
             for number in _event_buttons(event):
@@ -551,11 +567,16 @@ def _interaction_features(sequence: list[tuple[float, int, int]], beat: float, t
     }
 
 
-def _rhythm_features(chart: MaidataChart, beat: float) -> dict[str, float]:
-    points = [(time, number) for time, number, _ in _tap_sequence(chart)]
+def _rhythm_features(
+    chart: MaidataChart,
+    beat: float,
+    sequence: list[tuple[float, int, int]] | None = None,
+) -> dict[str, float]:
+    points = [(time, number) for time, number, _ in (sequence if sequence is not None else _tap_sequence(chart))]
     if len(points) < 10:
         return {"swing_runs": 0.0, "dotted_runs": 0.0, "ioi_cv": 0.0, "ioi_irregular": 0.0}
     intervals = [right[0] - left[0] for left, right in zip(points, points[1:]) if right[0] > left[0]]
+    median_interval = statistics.median(intervals)
     swing = dotted = 0
     for start in range(len(intervals) - 7):
         sample = intervals[start:start + 8]
@@ -574,27 +595,31 @@ def _rhythm_features(chart: MaidataChart, beat: float) -> dict[str, float]:
         "swing_runs": float(swing),
         "dotted_runs": float(dotted),
         "ioi_cv": float(_cv(intervals)),
-        "ioi_irregular": float(sum(abs(value - statistics.median(intervals)) > statistics.median(intervals) * 0.28 for value in intervals) / max(len(intervals), 1)),
+        "ioi_irregular": float(sum(abs(value - median_interval) > median_interval * 0.28 for value in intervals) / len(intervals)),
     }
 
 
-def extract_features(chart: MaidataChart) -> dict[str, float]:
+def _extract_feature_bundle(
+    chart: MaidataChart,
+    *,
+    include_evidence: bool = False,
+) -> tuple[dict[str, float], list[dict[str, Any]]]:
     events = sorted([event for event in chart.events if event.kind], key=lambda item: item.time)
     if not events:
-        return {"empty": 1.0}
+        return {"empty": 1.0}, []
     bpm = float(chart.bpm or events[0].bpm or 120.0)
     beat = 60.0 / max(bpm, 1.0)
     two_measure = 2.0 * _measure_seconds(bpm)
     groups = _group_events(chart)
-    windows, window_summary = _window_stats(chart)
-    sequence = _tap_sequence(chart)
+    windows, window_summary = _window_stats(chart, include_evidence=include_evidence, groups=groups)
+    sequence = _tap_sequence(chart, groups=groups)
     sweep = _sweep_features(sequence, beat)
     holds = _hold_features(chart, two_measure)
     slides = _slide_features(chart, beat)
     position = _position_features(chart, groups, two_measure)
     anchor = _anchor_features(chart, groups, two_measure, beat)
     misalignment = _misalignment_features(chart, groups, beat)
-    rhythm = _rhythm_features(chart, beat)
+    rhythm = _rhythm_features(chart, beat, sequence)
     interaction = _interaction_features(sequence, beat, two_measure)
     death = _death_scythe_hits(chart, sequence, beat)
     rulong, rulong_double, rulong_half = _rulong_features(chart, sequence, beat)
@@ -667,7 +692,16 @@ def extract_features(chart: MaidataChart) -> dict[str, float]:
         "touch_count": float(sum(event.kind == "touch" for event in events)),
         "pure_tap_n": float(len(sequence)),
         "local_window_count": float(len(windows)),
-    }
+    }, windows
+
+
+def extract_features(chart: MaidataChart) -> dict[str, float]:
+    features, _windows = _extract_feature_bundle(chart, include_evidence=False)
+    return features
+
+
+def extract_features_with_windows(chart: MaidataChart) -> tuple[dict[str, float], list[dict[str, Any]]]:
+    return _extract_feature_bundle(chart, include_evidence=True)
 
 
 def _span_evidence(windows: list[dict[str, Any]], predicate: Any, limit: int = 3) -> list[dict[str, Any]]:
@@ -683,8 +717,7 @@ def _add_score(scores: dict[str, float], tag: str, strength: float) -> None:
 
 
 def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
-    features = extract_features(chart)
-    windows, _summary = _window_stats(chart)
+    features, windows = extract_features_with_windows(chart)
     ds = float(chart.ds or 0.0)
     bpm = float(chart.bpm or 120.0)
     beat = 60.0 / max(bpm, 1.0)
@@ -843,4 +876,10 @@ def analyze_maidata_file(path: str | Path, min_ds: float = 12.6, max_ds: float =
     return analyze_maidata_text(Path(path).read_text(encoding="utf-8-sig"), min_ds=min_ds, max_ds=max_ds)
 
 
-__all__ = ["analyze_chart_tags", "analyze_maidata_file", "analyze_maidata_text", "extract_features"]
+__all__ = [
+    "analyze_chart_tags",
+    "analyze_maidata_file",
+    "analyze_maidata_text",
+    "extract_features",
+    "extract_features_with_windows",
+]

@@ -108,6 +108,46 @@ def parse_maidata(text: str) -> MaidataSong:
     return song
 
 
+def parse_maidata_metadata(text: str) -> MaidataSong:
+    """Parse only song and difficulty metadata without building note events."""
+    text = str(text or "").lstrip("\ufeff")
+    if not text or text.lstrip().startswith("{"):
+        return MaidataSong()
+
+    meta: dict[str, str] = {}
+    for key, value in _META_RE.findall(text):
+        if key.startswith("inote_"):
+            continue
+        meta[key] = value.strip()
+    song = MaidataSong(
+        title=meta.get("title", ""),
+        artist=meta.get("artist", ""),
+        whole_bpm=_f(meta.get("wholebpm") or meta.get("bpm")),
+        short_id=str(meta.get("shortid") or meta.get("id") or ""),
+        version=meta.get("version", ""),
+        meta=meta,
+    )
+    for diff_s, body in _INOTE_RE.findall(text):
+        diff_id = int(diff_s)
+        level_index = DIFF_INDEX_MAP.get(diff_id)
+        if level_index is None:
+            continue
+        default_bpm = song.whole_bpm or 120.0
+        bpm = default_bpm
+        for bpm_match in re.finditer(r"(?:^|,)\(([0-9]+(?:\.[0-9]+)?)\)", re.sub(r"\s+", "", body)):
+            if abs(bpm - default_bpm) < 1e-9:
+                bpm = _f(bpm_match.group(1), bpm)
+        song.charts[level_index] = MaidataChart(
+            diff_id=diff_id,
+            level_index=level_index,
+            ds=_f(meta.get(f"lv_{diff_id}")),
+            designer=meta.get(f"des_{diff_id}", ""),
+            bpm=bpm,
+            raw="",
+        )
+    return song
+
+
 def _duration_seconds(bpm: float, spec: str) -> float:
     spec = (spec or "").strip()
     if not spec:

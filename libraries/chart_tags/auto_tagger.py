@@ -11,6 +11,7 @@ model.
 import hashlib
 import json
 import threading
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -29,8 +30,8 @@ from .constants import (
     TAG_WEIGHTS,
     TARGET_LEVEL_INDEXES,
 )
-from .local.maidata_parser import MaidataChart, MaidataSong, parse_maidata
-from .local.structure_tagger import extract_features
+from .local.maidata_parser import MaidataChart, MaidataSong, parse_maidata, parse_maidata_metadata
+from .local.structure_tagger import extract_features, extract_features_with_windows
 from .official_downloader import DEFAULT_LEVELS_PATH, OfficialChartDownloader, validate_mode, validate_range
 from .rule_tags import filter_allowed_tags, select_final_tags
 
@@ -43,6 +44,8 @@ MODEL_FALLBACK_THRESHOLD = 0.25
 CATALOG_MIN_DS = 10.0
 CATALOG_MAX_DS = 15.0
 MAPPING_VERSION = 3
+MAX_RESULT_CACHE = 256
+MAX_SONG_CACHE = 32
 
 
 def now_text() -> str:
@@ -129,16 +132,27 @@ class LocalChartModel:
         self.loaded_at = now_text()
         self._mtime = marker
 
-    def predict(self, song: MaidataSong, chart: MaidataChart) -> dict[str, Any]:
+    def predict(
+        self,
+        song: MaidataSong,
+        chart: MaidataChart,
+        *,
+        include_evidence: bool = True,
+    ) -> dict[str, Any]:
         self._load()
         assert self.weights is not None
         assert self.bias is not None
         assert self.mean is not None
         assert self.scale is not None
-        features = extract_features(chart)
-        candidates, _excluded = _slide_collision_candidates(chart)
+        if include_evidence:
+            features, raw_windows = extract_features_with_windows(chart)
+            windows = _window_payload(chart, analysis={"windows": raw_windows})
+        else:
+            features = extract_features(chart)
+            windows = []
+        candidates, _excluded = _slide_collision_candidates(chart, include_details=include_evidence)
         accepted = _review_collision(candidates)
-        windows = _window_payload(chart)
+        window_count = min(20, int(features.get("local_window_count", 0.0) or 0))
         values = {
             f"feature.{key}": float(value)
             for key, value in features.items()
@@ -151,7 +165,7 @@ class LocalChartModel:
             "context.level_index": float(chart.level_index),
             "context.diff_id": float(chart.diff_id),
             "context.event_count": float(len(chart.events)),
-            "context.window_count": float(len(windows)),
+            "context.window_count": float(window_count),
             "context.collision_count": float(len(candidates)),
             "context.accepted_collision_count": float(len(accepted)),
         })
@@ -174,11 +188,12 @@ class LocalChartModel:
             "model_scores": {tag: _round(score, 6) for tag, score in model_scores.items()},
             "model_probabilities": probability_map,
             "features": {key: _round(value, 6) for key, value in features.items()},
-            "windows": windows,
-            "collision_candidates": candidates,
-            "accepted_collision_ids": [item["candidate_id"] for item in accepted],
-            "tag_positions": _tag_positions(model_tags, windows, accepted),
+            "windows": windows if include_evidence else [],
+            "collision_candidates": candidates if include_evidence else [],
+            "accepted_collision_ids": [item["candidate_id"] for item in accepted] if include_evidence else [],
+            "tag_positions": _tag_positions(model_tags, windows, accepted) if include_evidence else {},
             "note_counts": _note_counts(chart),
+            "evidence_complete": bool(include_evidence),
             "model_loaded_at": self.loaded_at,
             "model_metadata": {
                 "model_type": self.metadata.get("model_type", ""),
@@ -243,67 +258,92 @@ class LocalChartCatalog:
     def __init__(self, directory: str | Path = DEFAULT_LEVELS_PATH):
         value = Path(directory)
         self.directory = (Root / value if not value.is_absolute() else value).resolve()
-        self._marker: tuple[int, int] | None = None
+        self._file_cache: dict[str, tuple[tuple[int, int, int], list[dict[str, Any]]]] = {}
         self._refs: list[dict[str, Any]] = []
+        self._refs_by_key: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
 
-    def _directory_marker(self) -> tuple[int, int]:
+    @staticmethod
+    def _file_signature(path: Path) -> tuple[int, int, int]:
+        stat = path.stat()
+        return int(stat.st_mtime_ns), int(stat.st_ctime_ns), int(stat.st_size)
+
+    def _parse_file_refs(self, path: Path) -> list[dict[str, Any]]:
         try:
-            stat = self.directory.stat()
-            return int(stat.st_mtime_ns), int(stat.st_size)
-        except OSError:
-            return 0, 0
+            raw = path.read_bytes()
+            song = parse_maidata_metadata(raw.decode("utf-8-sig"))
+        except Exception:
+            return []
+        if not song.short_id or not song.title:
+            return []
+        if str(song.title).lstrip().startswith("[") or "宴" in str(song.meta.get("genre", "")):
+            return []
+        source_hash = _sha256(raw)
+        result: list[dict[str, Any]] = []
+        for level_index in TARGET_LEVEL_INDEXES:
+            chart = song.charts.get(level_index)
+            if chart is None or not CATALOG_MIN_DS <= float(chart.ds or 0.0) <= CATALOG_MAX_DS:
+                continue
+            key = f"{song.short_id}:{level_index}"
+            result.append({
+                "key": key,
+                "path": str(path),
+                "source_path": _relative_path(path),
+                "file": path.name,
+                "source_sha256": source_hash,
+                "song_id": str(song.short_id),
+                "shortid": str(song.short_id),
+                "title": song.title,
+                "artist": song.artist,
+                "genre": song.meta.get("genre", ""),
+                "version": song.version,
+                "level_index": level_index,
+                "diff_id": chart.diff_id,
+                "difficulty": DIFFICULTY_NAMES.get(level_index, str(level_index)),
+                "level": song.meta.get(f"lv_{chart.diff_id}", str(chart.ds)),
+                "ds": float(chart.ds),
+                "bpm": float(chart.bpm or song.whole_bpm or 0.0),
+                "whole_bpm": float(song.whole_bpm or chart.bpm or 0.0),
+                "designer": chart.designer,
+            })
+        return result
+
+    def invalidate(self) -> None:
+        with self._lock:
+            self._file_cache.clear()
+            self._refs = []
+            self._refs_by_key = {}
 
     def refs(self) -> list[dict[str, Any]]:
         self.directory.mkdir(parents=True, exist_ok=True)
         with self._lock:
-            marker = self._directory_marker()
-            if marker == self._marker:
-                return [dict(item) for item in self._refs]
             refs: dict[str, dict[str, Any]] = {}
+            current_files: set[str] = set()
             for path in sorted(self.directory.glob("*.txt")):
                 try:
-                    raw = path.read_bytes()
-                    song = parse_maidata(raw.decode("utf-8-sig"))
+                    signature = self._file_signature(path)
                 except Exception:
                     continue
-                if not song.short_id or not song.title:
-                    continue
-                if str(song.title).lstrip().startswith("[") or "宴" in str(song.meta.get("genre", "")):
-                    continue
-                source_hash = _sha256(raw)
-                for level_index in TARGET_LEVEL_INDEXES:
-                    chart = song.charts.get(level_index)
-                    if chart is None or not CATALOG_MIN_DS <= float(chart.ds or 0.0) <= CATALOG_MAX_DS:
-                        continue
-                    key = f"{song.short_id}:{level_index}"
-                    refs[key] = {
-                        "key": key,
-                        "path": str(path),
-                        "source_path": _relative_path(path),
-                        "file": path.name,
-                        "source_sha256": source_hash,
-                        "song_id": str(song.short_id),
-                        "shortid": str(song.short_id),
-                        "title": song.title,
-                        "artist": song.artist,
-                        "genre": song.meta.get("genre", ""),
-                        "version": song.version,
-                        "level_index": level_index,
-                        "diff_id": chart.diff_id,
-                        "difficulty": DIFFICULTY_NAMES.get(level_index, str(level_index)),
-                        "level": song.meta.get(f"lv_{chart.diff_id}", str(chart.ds)),
-                        "ds": float(chart.ds),
-                        "bpm": float(chart.bpm or song.whole_bpm or 0.0),
-                        "whole_bpm": float(song.whole_bpm or chart.bpm or 0.0),
-                        "designer": chart.designer,
-                    }
-            self._marker = marker
+                file_key = str(path)
+                current_files.add(file_key)
+                cached = self._file_cache.get(file_key)
+                if cached is not None and cached[0] == signature:
+                    file_refs = cached[1]
+                else:
+                    file_refs = self._parse_file_refs(path)
+                self._file_cache[file_key] = (signature, file_refs)
+                for ref in file_refs:
+                    refs[ref["key"]] = ref
+            self._file_cache = {key: value for key, value in self._file_cache.items() if key in current_files}
             self._refs = sorted(refs.values(), key=lambda item: (str(item["song_id"]), int(item["level_index"])))
+            self._refs_by_key = {item["key"]: item for item in self._refs}
             return [dict(item) for item in self._refs]
 
     def find(self, key: str) -> dict[str, Any] | None:
-        return next((item for item in self.refs() if item.get("key") == key), None)
+        with self._lock:
+            self.refs()
+            item = self._refs_by_key.get(str(key))
+            return dict(item) if item is not None else None
 
 
 def _mapping_from_ref(ref: dict[str, Any]) -> dict[str, Any]:
@@ -375,7 +415,10 @@ class AutoTagJob:
         self.stop_requested = False
         self.lock = threading.RLock()
         self._state_data: dict[str, Any] = {"status": "idle", "task": "", "processed": 0, "total": 0, "current": ""}
-        self._results: dict[str, dict[str, Any]] = {}
+        self._results: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._analysis_index: dict[str, tuple[str, bool]] = {}
+        self._song_cache: OrderedDict[str, tuple[str, MaidataSong]] = OrderedDict()
+        self._inflight: dict[str, threading.Event] = {}
 
     def _state(self) -> dict[str, Any]:
         with self.lock:
@@ -387,6 +430,37 @@ class AutoTagJob:
             self._state_data["updated_at"] = now_text()
             return dict(self._state_data)
 
+    def _cache_result(self, key: str, item: dict[str, Any]) -> None:
+        with self.lock:
+            self._results[key] = item
+            self._results.move_to_end(key)
+            while len(self._results) > MAX_RESULT_CACHE:
+                self._results.popitem(last=False)
+            if item.get("analysis_status") == "completed":
+                self._analysis_index[key] = (
+                    str(item.get("source_sha256", "")),
+                    bool(item.get("model_tags")),
+                )
+            else:
+                self._analysis_index.pop(key, None)
+
+    def _load_song(self, ref: dict[str, Any]) -> MaidataSong:
+        path = str(ref["path"])
+        source_sha256 = str(ref.get("source_sha256", ""))
+        with self.lock:
+            cached = self._song_cache.get(path)
+            if cached is not None and cached[0] == source_sha256:
+                self._song_cache.move_to_end(path)
+                return cached[1]
+        raw = Path(path).read_text(encoding="utf-8-sig")
+        song = parse_maidata(raw)
+        with self.lock:
+            self._song_cache[path] = (source_sha256, song)
+            self._song_cache.move_to_end(path)
+            while len(self._song_cache) > MAX_SONG_CACHE:
+                self._song_cache.popitem(last=False)
+        return song
+
     def status(self) -> dict[str, Any]:
         refs = self.catalog.refs()
         model_error = ""
@@ -394,11 +468,17 @@ class AutoTagJob:
             self.model._load()
         except Exception as exc:
             model_error = f"{type(exc).__name__}: {exc}"
-        with self.lock:
-            results = list(self._results.values())
         eligible = [ref for ref in refs if float(ref.get("ds", 0.0) or 0.0) >= MIN_TAG_DS]
-        analyzed_keys = {item.get("key") for item in results if item.get("analysis_status") == "completed"}
-        tagged = sum(bool(item.get("model_tags")) for item in results if item.get("analysis_status") == "completed")
+        source_by_key = {str(ref["key"]): str(ref.get("source_sha256", "")) for ref in eligible}
+        with self.lock:
+            analysis_index = dict(self._analysis_index)
+        current_analysis = {
+            key: tagged
+            for key, (source_sha256, tagged) in analysis_index.items()
+            if source_by_key.get(key) == source_sha256
+        }
+        analyzed_keys = set(current_analysis)
+        tagged = sum(bool(value) for value in current_analysis.values())
         state = self._state()
         state.update({
             "ok": True,
@@ -500,7 +580,9 @@ class AutoTagJob:
                 should_stop=lambda: self.stop_requested,
                 progress=lambda state: self._progress({"task": "download", "status": "running", **state}),
             )
-            self.catalog._marker = None
+            self.catalog.invalidate()
+            with self.lock:
+                self._song_cache.clear()
             self._progress({"task": "download", "status": "completed" if result.get("completed") else "stopped", **result, "finished_at": now_text(), "current": ""})
         except Exception as exc:
             log.error(f"谱面下载任务失败: {type(exc).__name__} - {exc}")
@@ -508,13 +590,12 @@ class AutoTagJob:
         finally:
             self.worker_thread = None
 
-    def _analyze_ref(self, ref: dict[str, Any]) -> dict[str, Any]:
-        raw = Path(ref["path"]).read_text(encoding="utf-8-sig")
-        song = parse_maidata(raw)
+    def _analyze_ref(self, ref: dict[str, Any], *, include_evidence: bool = True) -> dict[str, Any]:
+        song = self._load_song(ref)
         chart = song.charts.get(int(ref["level_index"]))
         if chart is None:
             raise ValueError("谱面难度不存在")
-        prediction = self.model.predict(song, chart)
+        prediction = self.model.predict(song, chart, include_evidence=include_evidence)
         model_tags = filter_allowed_tags(prediction.get("model_tags", []))
         model_scores = prediction.get("model_scores") if isinstance(prediction.get("model_scores"), dict) else {}
         final_tags, final_scores = select_final_tags({tag: float(model_scores.get(tag, TAG_WEIGHTS.get(tag, 0.5))) for tag in model_tags})
@@ -534,6 +615,7 @@ class AutoTagJob:
             "accepted_collision_ids": prediction.get("accepted_collision_ids", []),
             "model_metadata": prediction.get("model_metadata", {}),
             "notes": prediction.get("note_counts", {}),
+            "evidence_complete": bool(prediction.get("evidence_complete", include_evidence)),
             "analysis_status": "completed",
             "analysis_engine": MODEL_NAME,
             "rule_version": TAG_RULE_VERSION,
@@ -580,20 +662,20 @@ class AutoTagJob:
                     break
                 with self.lock:
                     old = self._results.get(ref["key"])
-                if not force and self._has_current_model(old, ref):
+                    indexed = self._analysis_index.get(ref["key"])
+                indexed_current = bool(indexed and indexed[0] == ref.get("source_sha256", ""))
+                if not force and (self._has_current_model(old, ref) or indexed_current):
                     skipped += 1
                     self._progress({"processed": index, "skipped": skipped, "current": ref["key"]})
                     continue
                 try:
                     item = self._analyze_ref(ref)
-                    with self.lock:
-                        self._results[ref["key"]] = item
+                    self._cache_result(ref["key"], item)
                     analyzed += 1
                 except Exception as exc:
                     failed += 1
                     item = self._failed_item(ref, exc)
-                    with self.lock:
-                        self._results[ref["key"]] = item
+                    self._cache_result(ref["key"], item)
                     log.error(f"本地谱面分析失败 {ref['key']}: {type(exc).__name__} - {exc}")
                 self._progress({
                     "status": "running",
@@ -622,29 +704,64 @@ class AutoTagJob:
             self.worker_thread = None
 
     @staticmethod
-    def _has_current_model(item: dict[str, Any] | None, ref: dict[str, Any]) -> bool:
+    def _has_current_model(
+        item: dict[str, Any] | None,
+        ref: dict[str, Any],
+        *,
+        require_evidence: bool = False,
+    ) -> bool:
         return bool(
             isinstance(item, dict)
             and item.get("analysis_status") == "completed"
             and item.get("analysis_engine") == MODEL_NAME
             and int(item.get("rule_version", -1) or -1) == TAG_RULE_VERSION
             and item.get("source_sha256") == ref.get("source_sha256")
+            and (not require_evidence or item.get("evidence_complete"))
         )
 
-    def _get_or_analyze(self, ref: dict[str, Any]) -> dict[str, Any]:
+    def _get_or_analyze(self, ref: dict[str, Any], *, include_evidence: bool = True) -> dict[str, Any]:
+        key = str(ref["key"])
         with self.lock:
-            item = self._results.get(ref["key"])
-        if self._has_current_model(item, ref):
+            item = self._results.get(key)
+        if self._has_current_model(item, ref, require_evidence=include_evidence):
+            with self.lock:
+                self._results.move_to_end(key)
             return dict(item)
-        try:
-            item = self._analyze_ref(ref)
-        except Exception as exc:
-            item = self._failed_item(ref, exc)
         with self.lock:
-            self._results[ref["key"]] = item
-        return dict(item)
+            event = self._inflight.get(key)
+            owner = event is None
+            if owner:
+                event = threading.Event()
+                self._inflight[key] = event
+        if not owner:
+            event.wait(180)
+            with self.lock:
+                item = self._results.get(key)
+            if self._has_current_model(item, ref, require_evidence=include_evidence):
+                return dict(item)
+            if isinstance(item, dict) and item.get("analysis_status") == "failed":
+                return dict(item)
+        try:
+            try:
+                item = self._analyze_ref(ref, include_evidence=include_evidence)
+            except Exception as exc:
+                item = self._failed_item(ref, exc)
+            self._cache_result(key, item)
+            return dict(item)
+        finally:
+            if owner:
+                with self.lock:
+                    pending = self._inflight.pop(key, None)
+                    if pending is not None:
+                        pending.set()
 
-    def analyze_key(self, key: str, *, fresh: bool = False) -> dict[str, Any] | None:
+    def analyze_key(
+        self,
+        key: str,
+        *,
+        fresh: bool = False,
+        include_evidence: bool = True,
+    ) -> dict[str, Any] | None:
         """Resolve one chart file and return a runtime-only model result."""
         ref = self.catalog.find(key)
         if ref is None:
@@ -654,13 +771,12 @@ class AutoTagJob:
             item.update({"analysis_status": "unsupported", "tag_status": "定数低于本地模型训练范围"})
         elif fresh:
             try:
-                item = self._analyze_ref(ref)
+                item = self._analyze_ref(ref, include_evidence=include_evidence)
             except Exception as exc:
                 item = self._failed_item(ref, exc)
-            with self.lock:
-                self._results[ref["key"]] = item
+            self._cache_result(ref["key"], item)
         else:
-            item = self._get_or_analyze(ref)
+            item = self._get_or_analyze(ref, include_evidence=include_evidence)
         return _detail(item, key)
 
     def search(self, query: str = "", *, min_ds: Any = CATALOG_MIN_DS, max_ds: Any = CATALOG_MAX_DS, limit: int = 80) -> list[dict[str, Any]]:
@@ -678,7 +794,7 @@ class AutoTagJob:
                 item = _base_item(ref)
                 item.update({"analysis_status": "unsupported", "tag_status": "定数低于本地模型训练范围"})
             else:
-                item = self._get_or_analyze(ref)
+                item = self._get_or_analyze(ref, include_evidence=False)
             result.append(_summary(item, ref["key"]))
             if len(result) >= limit:
                 break

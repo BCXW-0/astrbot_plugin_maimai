@@ -13,7 +13,7 @@ from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from ... import Root
-from .local.maidata_parser import parse_maidata
+from .local.maidata_parser import parse_maidata, parse_maidata_metadata
 
 ONECAT_ORIGIN = "https://dw.moant.cn:34225"
 MUSIC_DATA_URL = f"{ONECAT_ORIGIN}/api/getMusicData"
@@ -25,6 +25,8 @@ DEFAULT_MIN_DS = 12.6
 DEFAULT_MAX_DS = 15.0
 DOWNLOAD_MODES = frozenset({"all", "missing", "search"})
 USER_AGENT = "astrbot-plugin-maimai/auto-chart-tags"
+MAX_JSON_BYTES = 16 * 1024 * 1024
+MAX_BINARY_BYTES = 128 * 1024 * 1024
 
 
 ProgressCallback = Callable[[dict[str, Any]], None]
@@ -122,10 +124,23 @@ def extract_text_payloads(name: str, raw: bytes) -> list[tuple[str, bytes]]:
     return []
 
 
+def _read_response(response: Any, limit: int) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = response.read(1024 * 1024)
+        if not chunk:
+            return b"".join(chunks)
+        total += len(chunk)
+        if total > limit:
+            raise ValueError("OneCat 响应体超过允许大小")
+        chunks.append(chunk)
+
+
 def _json_request(url: str, timeout: float = 35.0) -> Any:
     request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     with urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+        return json.loads(_read_response(response, MAX_JSON_BYTES).decode("utf-8"))
 
 
 def _binary_request(url: str, timeout: float = 45.0) -> bytes:
@@ -134,7 +149,7 @@ def _binary_request(url: str, timeout: float = 45.0) -> bytes:
         raise ValueError("谱面文件地址不是 OneCat 官方地址")
     request = Request(url, headers={"User-Agent": USER_AGENT})
     with urlopen(request, timeout=timeout) as response:
-        return response.read()
+        return _read_response(response, MAX_BINARY_BYTES)
 
 
 def _music_rows(payload: Any) -> list[dict[str, Any]]:
@@ -159,7 +174,7 @@ def _existing_short_ids(directory: Path) -> set[str]:
     result: set[str] = set()
     for path in directory.glob("*.txt"):
         try:
-            song = parse_maidata(_decode_chart(path.read_bytes()))
+            song = parse_maidata_metadata(_decode_chart(path.read_bytes()))
         except Exception:
             continue
         if song.short_id:

@@ -25,7 +25,10 @@ def analyze_chart_runtime(song_id: Any, level_index: Any) -> dict[str, Any]:
 
 
 def get_chart_tag_scores(song_id: Any, level_index: Any) -> dict[str, float]:
-    item = analyze_chart_runtime(song_id, level_index)
+    item = _RUNTIME_JOB.analyze_key(
+        chart_key(song_id, level_index),
+        include_evidence=False,
+    ) or {}
     raw = item.get("model_scores") if isinstance(item.get("model_scores"), dict) else {}
     result: dict[str, float] = {}
     for tag, value in raw.items():
@@ -42,7 +45,10 @@ def get_chart_tag_scores(song_id: Any, level_index: Any) -> dict[str, float]:
 
 
 def get_chart_tags(song_id: Any, level_index: Any) -> list[str]:
-    item = analyze_chart_runtime(song_id, level_index)
+    item = _RUNTIME_JOB.analyze_key(
+        chart_key(song_id, level_index),
+        include_evidence=False,
+    ) or {}
     tags = item.get("final_tags") or item.get("model_tags") or []
     if not isinstance(tags, list):
         return []

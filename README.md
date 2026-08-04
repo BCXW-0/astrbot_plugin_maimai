@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-2.3.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-2.4.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -27,6 +27,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 - `1.7.x`：`舞萌体检`、`舞萌初始化`、分层帮助和我的舞萌；`1.7.2` 锐评含金量；`1.7.3` 标签权重
 - `2.2.0`：按 XLS 规则全量重算 12.6 - 15.0 谱面，训练本地模型；标签按请求从 Levels 直接分析，不再保存运行时标签库，并新增插件日志模块
 - `2.3.0`：清理不再维护的成长辅助、目标查询和本地记录功能，保留吃分推荐的目标 Rating 参数
+- `2.4.0`：优化谱面标签的增量索引、特征复用、轻量检索、B50 后台分析和任务缓存；不改变现有指令、WebUI 操作或输出字段
 
 > 纯净仓库不含完整 `static/mai/` 资源包，部署后需自备静态资源并执行初始化。
 
@@ -175,7 +176,7 @@ http://127.0.0.1:8796/?token=你的token
 - 下载任务会在 OneCat 完成筛选后显示候选歌曲总数、当前处理数和当前谱面；任务启动阶段会先显示等待筛选状态。
 - “插件日志”页只展示本插件日志，支持级别筛选、关键词筛选、自动刷新和清空。
 
-谱面标签不保存为静态标签库。每次请求先按 `shortid:level_index` 在 `static/Levels` 中找到 `shortid_title.txt`，解析对应的 `&inote_<diff_id>`，再交给本地模型；返回结果只保留在当前进程内存中。映射同时携带文件相对路径、文件 SHA-256、曲名、艺术家、定数、BPM、谱师和 `mapping_id`，不会依赖文件名猜测难度。
+谱面标签不保存为静态标签库。每次请求先按 `shortid:level_index` 在 `static/Levels` 中找到 `shortid_title.txt`，解析对应的 `&inote_<diff_id>`，再交给本地模型；搜索使用轻量标签摘要，详情请求仍生成完整分析窗口和撞尾证据。结果只保留在当前进程内存中，并使用有上限的缓存。映射同时携带文件相对路径、文件 SHA-256、曲名、艺术家、定数、BPM、谱师和 `mapping_id`，不会依赖文件名猜测难度。
 
 ## 谱面标签模型
 

@@ -146,10 +146,19 @@ def _window_payload(chart: MaidataChart, limit: int = 20, analysis: dict[str, An
     return result[:limit]
 
 
-def _slide_collision_candidates(chart: MaidataChart) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _slide_collision_candidates(
+    chart: MaidataChart,
+    *,
+    include_details: bool = True,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     candidates: list[dict[str, Any]] = []
     excluded_ex: list[dict[str, Any]] = []
     targets = {"tap", "break", "hold"}
+    targets_by_area: dict[str, list[tuple[int, NoteEvent]]] = defaultdict(list)
+    for target_index, target in enumerate(chart.events):
+        if target.kind not in targets or not target.buttons:
+            continue
+        targets_by_area[str(target.buttons[0])].append((target_index, target))
     for slide_index, slide in enumerate(chart.events):
         if slide.kind != "slide" or slide.duration <= 0:
             continue
@@ -159,11 +168,8 @@ def _slide_collision_candidates(chart: MaidataChart) -> tuple[list[dict[str, Any
         area = path[-1]
         passed_time = float(slide.time) + float(slide.duration)
         slide_end = passed_time
-        for target_index, target in enumerate(chart.events):
-            if target_index == slide_index or target.kind not in targets:
-                continue
-            target_area = str(target.buttons[0]) if target.buttons else ""
-            if target_area != area:
+        for target_index, target in targets_by_area.get(area, ()):
+            if target_index == slide_index:
                 continue
             delta = float(target.time) - passed_time
             if not -0.05 <= delta <= 0.20:
@@ -172,27 +178,30 @@ def _slide_collision_candidates(chart: MaidataChart) -> tuple[list[dict[str, Any
             # grammar, not a tail collision.  Ex targets remain audit-only.
             if target.kind == "hold" and delta < 0.0:
                 continue
-            candidate = {
-                "candidate_id": f"s{slide_index}:p{len(path) - 1}:t{target_index}",
-                "slide_event_index": slide_index,
-                "target_event_index": target_index,
-                "slide_raw": slide.raw,
-                "target_raw": target.raw,
-                "slide_start": _round(slide.time),
-                "slide_duration": _round(slide.duration),
-                "slide_path": list(path),
-                "passed_time": _round(passed_time),
-                "slide_end": _round(slide_end),
-                "target_time": _round(target.time),
-                "target_kind": target.kind,
-                "area": area,
-                "delta": _round(delta),
-                "target_is_ex": bool(target.is_ex),
-                "timing_class": "absolute" if abs(delta) < 1e-6 else "hard" if delta <= 0.15 else "soft",
-                "rule": "Slide末端路径区，目标进入时间差[-0.05s,+0.20s]",
-            }
+            candidate_id = f"s{slide_index}:p{len(path) - 1}:t{target_index}"
+            candidate = {"candidate_id": candidate_id}
+            if include_details:
+                candidate.update({
+                    "slide_event_index": slide_index,
+                    "target_event_index": target_index,
+                    "slide_raw": slide.raw,
+                    "target_raw": target.raw,
+                    "slide_start": _round(slide.time),
+                    "slide_duration": _round(slide.duration),
+                    "slide_path": list(path),
+                    "passed_time": _round(passed_time),
+                    "slide_end": _round(slide_end),
+                    "target_time": _round(target.time),
+                    "target_kind": target.kind,
+                    "area": area,
+                    "delta": _round(delta),
+                    "target_is_ex": bool(target.is_ex),
+                    "timing_class": "absolute" if abs(delta) < 1e-6 else "hard" if delta <= 0.15 else "soft",
+                    "rule": "Slide末端路径区，目标进入时间差[-0.05s,+0.20s]",
+                })
             if target.is_ex:
-                excluded_ex.append({**candidate, "reason": "目标原始语法含 x 的 Ex 音符不计入撞尾"})
+                if include_details:
+                    excluded_ex.append({**candidate, "reason": "目标原始语法含 x 的 Ex 音符不计入撞尾"})
             else:
                 candidates.append(candidate)
     return candidates, excluded_ex
@@ -372,8 +381,9 @@ def _event_count(chart: MaidataChart) -> dict[str, int]:
 def _make_record(ref: dict[str, Any], raw: str, chart: MaidataChart) -> dict[str, Any]:
     analysis = analyze_chart_tags(chart)
     payload = build_chart_audit_payload(Path(ref["path"]), chart, analysis)
-    candidates, excluded_ex = _slide_collision_candidates(chart)
-    accepted = _review_collision(candidates)
+    candidates = payload["collision_candidates"]
+    excluded_ex = payload["collision_exclusions"]
+    accepted_ids = [item["candidate_id"] for item in candidates]
     return {
         "record_version": 4,
         "record_key": ref["key"],
@@ -407,7 +417,7 @@ def _make_record(ref: dict[str, Any], raw: str, chart: MaidataChart) -> dict[str
             "rule": payload["collision_rule"],
             "candidates": candidates,
             "excluded_ex": excluded_ex,
-            "accepted_candidate_ids": [item["candidate_id"] for item in accepted],
+            "accepted_candidate_ids": accepted_ids,
         },
         "raw_tags": filter_allowed_tags(analysis.get("raw_tags") or []),
         "difficulty_tags": filter_allowed_tags(analysis.get("difficulty_tags") or []),

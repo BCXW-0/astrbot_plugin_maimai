@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import suppress
 from pathlib import Path
 
@@ -21,7 +22,7 @@ async def b50_analysis_handler(event, context, config: dict | None = None):
     try:
         yield event.plain_result("正在从水鱼查分器拉取 B50 并调用 LLM 生成锐评，请稍候...")
         userinfo = await maiApi.query_user_b50(qqid=int(qqid))
-        prompt = build_analysis_context(userinfo, str(qqid))
+        prompt = await asyncio.to_thread(build_analysis_context, userinfo, str(qqid))
         persona_prompt = ""
         matched_persona_name = None
         taste_roast_setting = ""

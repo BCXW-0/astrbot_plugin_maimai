@@ -34,6 +34,7 @@ let pendingForce = false;
 let cachedPersonas = [];
 let autoStatusTimer = null;
 let autoStatusRequestActive = false;
+let autoStatusRetryDelay = 3000;
 let logsTimer = null;
 let logsRequestActive = false;
 
@@ -168,9 +169,13 @@ async function loadAutoTagsStatus() {
     if (!data.ok) {
       autoModelBadge.textContent = '接口不可用';
       autoTagsStatusBox.innerHTML = '<div class="empty">' + escapeHtml(data.message || '本地模型状态加载失败') + '</div>';
+      clearTimeout(autoStatusTimer);
+      autoStatusTimer = setTimeout(loadAutoTagsStatus, autoStatusRetryDelay);
+      autoStatusRetryDelay = Math.min(autoStatusRetryDelay * 2, 30000);
       return data;
     }
     renderAutoTagsStatus(data);
+    autoStatusRetryDelay = 3000;
     clearTimeout(autoStatusTimer);
     autoStatusTimer = data.running ? setTimeout(loadAutoTagsStatus, 1600) : null;
     return data;

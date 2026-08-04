@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,6 +52,11 @@ class OfficialChartDownloaderProgressTest(unittest.TestCase):
         self.assertTrue(states)
         self.assertEqual(states[0]["total"], 1)
         self.assertEqual(states[-1]["total"], 1)
+
+    def test_response_reader_enforces_size_limit(self) -> None:
+        self.assertEqual(official_downloader._read_response(io.BytesIO(b"abc"), 3), b"abc")
+        with self.assertRaises(ValueError):
+            official_downloader._read_response(io.BytesIO(b"abc"), 2)
 
 
 if __name__ == "__main__":
