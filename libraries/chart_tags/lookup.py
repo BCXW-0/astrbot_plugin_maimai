@@ -10,6 +10,7 @@ trained local model.
 from typing import Any
 
 from .auto_tagger import AutoTagJob
+from .constants import MAX_FINAL_TAGS
 from .rule_tags import filter_allowed_tags, sort_tags_by_weight, tag_weight
 
 _RUNTIME_JOB = AutoTagJob()
@@ -56,7 +57,7 @@ def get_chart_tags(song_id: Any, level_index: Any) -> list[str]:
     return sort_tags_by_weight(filter_allowed_tags(str(tag) for tag in tags), scores)
 
 
-def format_chart_tags(song_id: Any, level_index: Any, max_tags: int = 4) -> str:
+def format_chart_tags(song_id: Any, level_index: Any, max_tags: int = MAX_FINAL_TAGS) -> str:
     tags = get_chart_tags(song_id, level_index)
     if not tags:
         return ""

@@ -19,7 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ..constants import DIFFICULTY_CAPS, GENERIC_TAGS, TAG_WEIGHTS
+from ..constants import DIFFICULTY_CAPS, GENERIC_TAGS, RULE_ENGINE, TAG_RULE_VERSION, TAG_WEIGHTS
 from ..rule_tags import filter_allowed_tags, tag_weight
 from .maidata_parser import MaidataChart, NoteEvent
 
@@ -421,6 +421,43 @@ def _slide_features(chart: MaidataChart, beat: float) -> dict[str, float]:
     }
 
 
+def _slide_position_window_features(
+    chart: MaidataChart,
+    windows: list[dict[str, Any]],
+    beat: float,
+) -> dict[str, float]:
+    """Count wide, fast Slides inside the same two-measure windows."""
+    slides = [event for event in chart.events if event.kind == "slide"]
+    best_fast = 0
+    best_large = 0
+    best_ratio = 0.0
+    for window in windows:
+        start = float(window.get("start", 0.0) or 0.0)
+        end = float(window.get("end", start) or start)
+        selected = [slide for slide in slides if start <= slide.time < end]
+        if not selected:
+            continue
+        large = 0
+        fast = 0
+        for slide in selected:
+            path = [_button(value) for value in (slide.path or slide.buttons)]
+            path = [value for value in path if value is not None]
+            span = sum(_ring_distance(path[index - 1], path[index]) for index in range(1, len(path)))
+            if span < 3:
+                continue
+            large += 1
+            if float(slide.duration) / max(span, 1) <= beat * 0.35:
+                fast += 1
+        best_large = max(best_large, large)
+        best_fast = max(best_fast, fast)
+        best_ratio = max(best_ratio, fast / max(large, 1))
+    return {
+        "window_large_span_slides": float(best_large),
+        "window_fast_large_span_slides": float(best_fast),
+        "window_fast_large_span_ratio": float(best_ratio),
+    }
+
+
 def _position_features(chart: MaidataChart, groups: list[dict[str, Any]], two_measure: float) -> dict[str, float]:
     violations = [group for group in groups if group["zone_cross"]]
     times = [float(group["time"]) for group in groups]
@@ -616,6 +653,7 @@ def _extract_feature_bundle(
     sweep = _sweep_features(sequence, beat)
     holds = _hold_features(chart, two_measure)
     slides = _slide_features(chart, beat)
+    slide_position = _slide_position_window_features(chart, windows, beat)
     position = _position_features(chart, groups, two_measure)
     anchor = _anchor_features(chart, groups, two_measure, beat)
     misalignment = _misalignment_features(chart, groups, beat)
@@ -677,6 +715,7 @@ def _extract_feature_bundle(
         "window_zone_cross_peak": window_summary["window_zone_cross_peak"],
         **holds,
         **slides,
+        **slide_position,
         **position,
         **anchor,
         **misalignment,
@@ -724,6 +763,7 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
     raw: list[str] = []
     difficult: list[str] = []
     scores: dict[str, float] = {}
+    difficulty_scores: dict[str, float] = {}
     evidence: dict[str, list[dict[str, Any]]] = {}
 
     def add(
@@ -741,8 +781,18 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
         _add_score(scores, candidate, score)
         if candidate != tag:
             _add_score(scores, tag, score)
-        if hard and tag not in difficult:
-            difficult.append(tag)
+        if hard:
+            if tag not in difficult:
+                difficult.append(tag)
+            difficulty_scores[tag] = max(
+                difficulty_scores.get(tag, 0.0),
+                min(1.45, float(score)),
+            )
+            if candidate != tag:
+                difficulty_scores[candidate] = max(
+                    difficulty_scores.get(candidate, 0.0),
+                    min(1.45, float(score)),
+                )
         if spans:
             evidence[tag] = [
                 {
@@ -769,7 +819,10 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
         rhythm_windows = _span_evidence(windows, lambda item: True)
         add("跳拍", 0.65 + min(0.6, features["swing_runs"] * 0.08 + features["dotted_runs"] * 0.08), hard=features["swing_runs"] >= 2 or features["dotted_runs"] >= 3, spans=rhythm_windows, reason="局部 Swing、Shuffle 或连续附点节奏成立")
         add("节奏", 0.55 + min(0.6, features["ioi_cv"]), hard=features["ioi_irregular"] >= 0.45, spans=rhythm_windows, reason="局部节奏间隔发生成组变化")
-    if features["ioi_cv"] <= 0.18 and features["anchor_hits"]:
+    # The anchor itself is evaluated inside each two-measure window.  A chart
+    # may contain unrelated rhythm elsewhere, so a whole-chart IOI check would
+    # erase valid local 定拍 candidates.
+    if features["anchor_hits"]:
         spans = _span_evidence(windows, lambda item: item["onset_count"] >= 6)
         add("定拍", 0.65 + min(0.55, features["anchor_duration"] / max(features["two_measure_sec"], 0.1)), hard=features["anchor_duration"] >= features["two_measure_sec"] * 2 or features["anchor_peak_nps"] >= 8, spans=spans, reason="一只手锚定稳定拍点，另一只手同时处理其他配置")
 
@@ -780,17 +833,66 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
         add("手速", speed_score, hard=features["nps"] >= 10.5 or features["peak_density"] >= 18, spans=windows[:2], reason="单位时间处理速度达到候选阈值")
     if features["total"] >= 700 and features["mean_density"] >= 6.5 and features["duration"] >= 70:
         add("底力", 0.7 + min(0.55, features["total"] / 1500.0), hard=features["total"] >= 1000 and features["mean_density"] >= 8, spans=windows[:2], reason="长时间保持较高物量和平均密度")
-    if features["burst_ratio"] >= 2.4 and features["peak_density"] >= 14 and features["peak_density"] - features["median_density"] >= 6:
-        add("爆发", 0.7 + min(0.6, (features["burst_ratio"] - 2.2) / 2.5), hard=features["burst_ratio"] >= 3.2 and features["peak_density"] >= 18, spans=windows[:2], reason="局部峰值密度显著高于中位密度")
+    burst_gap = features["peak_density"] - features["median_density"]
+    if features["burst_ratio"] >= 2.0 and features["peak_density"] >= 14 and burst_gap >= 6:
+        burst_hard = (
+            features["burst_ratio"] >= 2.0
+            and features["peak_density"] >= 16
+            and burst_gap >= 7
+        )
+        add(
+            "爆发",
+            0.7 + min(0.6, max(0.0, features["burst_ratio"] - 2.0) / 2.5),
+            hard=burst_hard,
+            spans=windows[:2],
+            reason="局部峰值密度显著高于中位密度，且峰谷差达到候选阈值",
+        )
     if features["tap_ratio"] >= 0.68 and features["slide_ratio"] <= 0.09 and features["key_entropy"] >= 0.8 and features["nps"] >= 5:
         add("散打", 0.55 + min(0.75, features["key_entropy"]), hard=features["burst_ratio"] >= 2.4 or features["nps"] >= 8.5, spans=windows[:2], reason="Tap 分散、键位熵高且缺少固定手型")
     if features["jump"] / max(features["total"], 1.0) >= 0.10 and features["jump"] >= 30:
         add("飞手", 0.55 + min(0.75, (features["jump"] / max(features["total"], 1.0) - 0.1) * 6), hard=features["jump"] >= 80 or features["window_zone_cross_peak"] >= 3, spans=windows[:2], reason="局部大跳键比例和数量达到阈值")
 
+    # Fast, wide Slides and repeated large displacements are positioning
+    # evidence in their own right; they are not only a 协调 side effect.
+    positioning_signal = (
+        (
+            features["window_fast_large_span_slides"] >= 3
+            and features["window_density_peak"] >= 12
+            and (
+                features["window_zone_cross_peak"] >= 6
+                or features["coord_disp"] >= 2
+            )
+        )
+        or (
+            features["coord_disp"] >= 4
+            and features["window_zone_cross_peak"] >= 8
+            and features["window_density_peak"] >= 10
+        )
+    )
+    if positioning_signal:
+        positioning_score = 0.7 + min(
+            0.7,
+            features["window_fast_large_span_slides"] / 4.0
+            + features["window_fast_large_span_ratio"] / 4.0
+            + features["window_zone_cross_peak"] / 8.0
+            + features["coord_disp"] / 6.0,
+        )
+        add(
+            "定位",
+            positioning_score,
+            hard=(
+                features["window_fast_large_span_slides"] >= 4
+                or features["window_zone_cross_peak"] >= 9
+                or features["coord_disp"] >= 5
+            ),
+            spans=windows[:2],
+            reason="快速大跨度 Slide 或连续大位移键型形成短窗口定位压力",
+        )
+
     # Hand assignment violations are merged into 协调 per the XLS.
-    if features["zone_violation_count"] >= 6 or features["zone_violation_peak"] >= 4:
+    if features["zone_violation_peak"] >= 9 and features["window_density_peak"] >= 10:
         hand_score = 0.65 + min(0.75, features["zone_violation_count"] / 18.0 + features["zone_violation_ratio"])
-        add("协调", hand_score, hard=features["zone_violation_count"] >= 12 or features["zone_violation_peak"] >= 7, spans=windows[:2], reason="左右手默认分区被大量跨越，合并为协调/手序难点")
+        add("协调", hand_score, hard=features["zone_violation_peak"] >= 12, spans=windows[:2], reason="两小节高密度内左右手默认分区被大量跨越，合并为协调/手序难点")
 
     # Interaction family.
     if features["axis_hits"] >= 3:
@@ -800,8 +902,19 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
     if features["ordinary_interaction_hits"] >= 3:
         ordinary_score = 0.55 + min(0.75, features["ordinary_interaction_hits"] / 20.0)
         add("交互", ordinary_score, hard=features["ordinary_interaction_duration"] >= features["two_measure_sec"] * 2 or features["ordinary_interaction_non_tap"] >= 2, spans=windows[:2], reason="快速交替成立且没有被轴/爬梯/协调完全解释")
-    if features["short_stack_hot"] >= 4 or features["coord_disp"] >= 1:
-        add("协调", 0.7 + min(0.65, features["short_stack_hot"] / 16.0 + features["coord_disp"] / 8.0), hard=features["short_stack_hot"] >= 8 or features["coord_disp"] >= 3, spans=windows[:2], reason="短纵、大位移交互或难协调键型重复出现")
+    coordination_signal = (
+        (
+            features["zone_violation_peak"] >= 9
+            and features["window_density_peak"] >= 10
+        )
+        or (
+            features["short_stack_hot"] >= 6
+            and features["short_stack_distinct_hot"] >= 2
+        )
+        or features["coord_disp"] >= 8
+    )
+    if coordination_signal:
+        add("协调", 0.7 + min(0.65, features["short_stack_hot"] / 16.0 + features["coord_disp"] / 8.0), hard=features["short_stack_hot"] >= 10 or features["coord_disp"] >= 10, spans=windows[:2], reason="短纵、大位移交互或难协调键型重复出现")
     if features["stack_ratio"] >= 0.06 and features["stack"] >= 18:
         add("纵连", 0.55 + min(0.75, features["stack_ratio"] * 6), hard=features["stack_duration"] >= features["two_measure_sec"] * 1.5 or features["bpm"] >= 190, spans=windows[:2], reason="连续纵向重复击打达到局部阈值")
 
@@ -815,8 +928,31 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
     if features["misalignment_hits"] >= 1:
         add("错位", 0.65 + min(0.65, features["misalignment_hits"] / 5.0), hard=features["misalignment_hits"] >= 2 or features["misalignment_position_changes"] >= 2, spans=windows[:2], reason="Master 中双押引导与隔拍 Slide 启动形成错位")
 
-    if features["short_slides"] >= 12 and features["short_slide_ratio"] >= 0.35 and (bpm >= 180 or features["complex_slide_count"] >= 4):
-        add("留尾", 0.75 + min(0.65, features["short_slide_ratio"] + features["fast_large_span_slides"] / 12.0), hard=features["fast_large_span_slides"] >= 4 or features["complex_slide_count"] >= 8, spans=windows[:2], reason="高BPM秒划或复杂 Slide 出张达到留尾难点条件")
+    tail_signal = (
+        features["short_slides"] >= 12
+        and features["short_slide_ratio"] >= 0.35
+        and (
+            (
+                bpm >= 180
+                and features["fast_large_span_slides"] >= 8
+                and features["window_fast_large_span_slides"] >= 8
+            )
+            or (
+                features["complex_slide_count"] >= 12
+                and features["window_large_span_slides"] >= 8
+            )
+        )
+        and (
+            (
+                features["zone_violation_peak"] >= 9
+                and features["window_density_peak"] >= 10
+            )
+            or features["coord_disp"] >= 8
+            or features["window_fast_large_span_slides"] >= 8
+        )
+    )
+    if tail_signal:
+        add("留尾", 0.75 + min(0.65, features["short_slide_ratio"] + features["fast_large_span_slides"] / 12.0), hard=True, spans=windows[:2], reason="高BPM短星或复杂 Slide 出张同时形成局部收尾与手序压力")
     if features["short_slide_ratio"] >= 0.35 and features["short_slides"] >= 12 and features["slide_ratio"] >= 0.10:
         add("防蹭", 0.55 + min(0.75, features["short_slide_ratio"]), hard=features["short_slides"] >= 28, spans=windows[:2], reason="大量短星带来跳区与邻近判定区误触风险")
     if features["slide_overlap_peak"] >= 2 and bpm <= 160:
@@ -844,12 +980,13 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
         "difficulty_tags": filter_allowed_tags(difficult),
         "tag_scores": {tag: round(scores.get(tag, tag_weight(tag)), 6) for tag in filter_allowed_tags(display_candidates)},
         "candidate_scores": {tag: round(value, 6) for tag, value in scores.items()},
+        "difficulty_scores": {tag: round(value, 6) for tag, value in difficulty_scores.items()},
         "features": features,
         "windows": windows[:20],
         "tag_evidence": evidence,
         "confidence": round(min(1.0, max(0.0, sum(scores.values()) / max(len(scores), 1))), 4),
-        "source": "local_xls_rule_engine",
-        "rule_version": 15,
+        "source": RULE_ENGINE,
+        "rule_version": TAG_RULE_VERSION,
         "difficulty_caps": DIFFICULTY_CAPS,
     }
 

@@ -1,14 +1,16 @@
 {
-  "version": 2,
-  "model_type": "multilabel_logistic_regression",
-  "analysis_engine": "local_xls_rule_engine",
+  "version": 4,
+  "model_type": "calibrated_ensemble_multilabel_logistic",
+  "analysis_engine": "local_xls_dual_model_consensus",
   "rule_spec_source": "maimai.xls",
-  "rule_version": 15,
+  "rule_version": 19,
   "dataset": "static/chart_tag_dataset.jsonl.gz",
-  "records": 1732,
-  "train_records": 1386,
-  "valid_records": 346,
-  "feature_count": 89,
+  "records": 121,
+  "effective_records": 121,
+  "train_records": 73,
+  "valid_records": 24,
+  "holdout_records": 24,
+  "feature_count": 190,
   "feature_names": [
     "context.accepted_collision_count",
     "context.bpm",
@@ -95,11 +97,241 @@
     "feature.two_measure_sec",
     "feature.window_count",
     "feature.window_density_peak",
+    "feature.window_fast_large_span_ratio",
+    "feature.window_fast_large_span_slides",
+    "feature.window_large_span_slides",
     "feature.window_zone_cross_peak",
     "feature.zone_violation_count",
     "feature.zone_violation_peak",
-    "feature.zone_violation_ratio"
+    "feature.zone_violation_ratio",
+    "rule.candidate.交互",
+    "rule.candidate.协调",
+    "rule.candidate.双押",
+    "rule.candidate.如龙",
+    "rule.candidate.定位",
+    "rule.candidate.定拍",
+    "rule.candidate.底力",
+    "rule.candidate.延迟星星",
+    "rule.candidate.手速",
+    "rule.candidate.扫键",
+    "rule.candidate.撞尾",
+    "rule.candidate.散打",
+    "rule.candidate.死镰",
+    "rule.candidate.爆发",
+    "rule.candidate.爬梯交互",
+    "rule.candidate.留尾",
+    "rule.candidate.管子",
+    "rule.candidate.纵连",
+    "rule.candidate.节奏",
+    "rule.candidate.跳拍",
+    "rule.candidate.轴交互",
+    "rule.candidate.错位",
+    "rule.candidate.防蹭",
+    "rule.candidate.飞手",
+    "rule.difficulty.交互",
+    "rule.difficulty.协调",
+    "rule.difficulty.双押",
+    "rule.difficulty.如龙",
+    "rule.difficulty.定位",
+    "rule.difficulty.定拍",
+    "rule.difficulty.底力",
+    "rule.difficulty.手速",
+    "rule.difficulty.扫键",
+    "rule.difficulty.拆弹",
+    "rule.difficulty.撞尾",
+    "rule.difficulty.散打",
+    "rule.difficulty.死镰",
+    "rule.difficulty.爆发",
+    "rule.difficulty.爬梯交互",
+    "rule.difficulty.留尾",
+    "rule.difficulty.管子",
+    "rule.difficulty.纵连",
+    "rule.difficulty.节奏",
+    "rule.difficulty.跳拍",
+    "rule.difficulty.轴交互",
+    "rule.difficulty.错位",
+    "rule.difficulty.防蹭",
+    "rule.difficulty.飞手",
+    "rule.difficulty_score.交互",
+    "rule.difficulty_score.协调",
+    "rule.difficulty_score.双押",
+    "rule.difficulty_score.如龙",
+    "rule.difficulty_score.定位",
+    "rule.difficulty_score.定拍",
+    "rule.difficulty_score.底力",
+    "rule.difficulty_score.延迟星星",
+    "rule.difficulty_score.手速",
+    "rule.difficulty_score.扫键",
+    "rule.difficulty_score.拆弹",
+    "rule.difficulty_score.撞尾",
+    "rule.difficulty_score.散打",
+    "rule.difficulty_score.死镰",
+    "rule.difficulty_score.爆发",
+    "rule.difficulty_score.爬梯交互",
+    "rule.difficulty_score.留尾",
+    "rule.difficulty_score.管子",
+    "rule.difficulty_score.纵连",
+    "rule.difficulty_score.节奏",
+    "rule.difficulty_score.跳拍",
+    "rule.difficulty_score.轴交互",
+    "rule.difficulty_score.错位",
+    "rule.difficulty_score.防蹭",
+    "rule.difficulty_score.飞手",
+    "rule.score.交互",
+    "rule.score.协调",
+    "rule.score.双押",
+    "rule.score.如龙",
+    "rule.score.定位",
+    "rule.score.定拍",
+    "rule.score.底力",
+    "rule.score.延迟星星",
+    "rule.score.手速",
+    "rule.score.扫键",
+    "rule.score.拆弹",
+    "rule.score.撞尾",
+    "rule.score.散打",
+    "rule.score.死镰",
+    "rule.score.爆发",
+    "rule.score.爬梯交互",
+    "rule.score.留尾",
+    "rule.score.管子",
+    "rule.score.纵连",
+    "rule.score.节奏",
+    "rule.score.跳拍",
+    "rule.score.轴交互",
+    "rule.score.错位",
+    "rule.score.防蹭",
+    "rule.score.飞手"
   ],
+  "training_target_field": "training_tags",
+  "training_target_definition": "双模型/联网强监督标签加未被五标签展示槽位截断的XLS候选弱监督标签；final_tags 仅为审计展示标签，不作为训练目标",
+  "label_coverage": {
+    "节奏": {
+      "candidate_count": 82,
+      "training_positive_count": 6,
+      "validated_count": 0
+    },
+    "延迟星星": {
+      "candidate_count": 42,
+      "training_positive_count": 2,
+      "validated_count": 0
+    },
+    "拆弹": {
+      "candidate_count": 40,
+      "training_positive_count": 15,
+      "validated_count": 0
+    },
+    "管子": {
+      "candidate_count": 98,
+      "training_positive_count": 30,
+      "validated_count": 6
+    },
+    "定位": {
+      "candidate_count": 48,
+      "training_positive_count": 43,
+      "validated_count": 0
+    },
+    "散打": {
+      "candidate_count": 14,
+      "training_positive_count": 4,
+      "validated_count": 0
+    },
+    "飞手": {
+      "candidate_count": 40,
+      "training_positive_count": 10,
+      "validated_count": 4
+    },
+    "防蹭": {
+      "candidate_count": 90,
+      "training_positive_count": 74,
+      "validated_count": 0
+    },
+    "留尾": {
+      "candidate_count": 32,
+      "training_positive_count": 34,
+      "validated_count": 0
+    },
+    "爆发": {
+      "candidate_count": 58,
+      "training_positive_count": 5,
+      "validated_count": 0
+    },
+    "底力": {
+      "candidate_count": 47,
+      "training_positive_count": 7,
+      "validated_count": 0
+    },
+    "交互": {
+      "candidate_count": 74,
+      "training_positive_count": 17,
+      "validated_count": 0
+    },
+    "轴交互": {
+      "candidate_count": 10,
+      "training_positive_count": 4,
+      "validated_count": 0
+    },
+    "爬梯交互": {
+      "candidate_count": 39,
+      "training_positive_count": 17,
+      "validated_count": 0
+    },
+    "定拍": {
+      "candidate_count": 64,
+      "training_positive_count": 4,
+      "validated_count": 0
+    },
+    "双押": {
+      "candidate_count": 117,
+      "training_positive_count": 115,
+      "validated_count": 23
+    },
+    "扫键": {
+      "candidate_count": 118,
+      "training_positive_count": 24,
+      "validated_count": 0
+    },
+    "死镰": {
+      "candidate_count": 20,
+      "training_positive_count": 3,
+      "validated_count": 0
+    },
+    "错位": {
+      "candidate_count": 93,
+      "training_positive_count": 46,
+      "validated_count": 0
+    },
+    "手速": {
+      "candidate_count": 73,
+      "training_positive_count": 2,
+      "validated_count": 0
+    },
+    "纵连": {
+      "candidate_count": 60,
+      "training_positive_count": 8,
+      "validated_count": 2
+    },
+    "跳拍": {
+      "candidate_count": 82,
+      "training_positive_count": 41,
+      "validated_count": 1
+    },
+    "如龙": {
+      "candidate_count": 91,
+      "training_positive_count": 38,
+      "validated_count": 2
+    },
+    "协调": {
+      "candidate_count": 66,
+      "training_positive_count": 52,
+      "validated_count": 12
+    },
+    "撞尾": {
+      "candidate_count": 81,
+      "training_positive_count": 2,
+      "validated_count": 0
+    }
+  },
   "labels": [
     "节奏",
     "延迟星星",
@@ -127,9 +359,128 @@
     "协调",
     "撞尾"
   ],
-  "best_epoch": 220,
-  "best_valid_loss": 0.4757357,
+  "target_positive_counts": {
+    "节奏": 82,
+    "延迟星星": 42,
+    "拆弹": 40,
+    "管子": 98,
+    "定位": 48,
+    "散打": 14,
+    "飞手": 40,
+    "防蹭": 90,
+    "留尾": 34,
+    "爆发": 58,
+    "底力": 47,
+    "交互": 74,
+    "轴交互": 10,
+    "爬梯交互": 39,
+    "定拍": 64,
+    "双押": 117,
+    "扫键": 118,
+    "死镰": 20,
+    "错位": 93,
+    "手速": 73,
+    "纵连": 60,
+    "跳拍": 82,
+    "如龙": 91,
+    "协调": 86,
+    "撞尾": 81
+  },
+  "target_positive_rates": {
+    "节奏": 0.677686,
+    "延迟星星": 0.347107,
+    "拆弹": 0.330579,
+    "管子": 0.809917,
+    "定位": 0.396694,
+    "散打": 0.115702,
+    "飞手": 0.330579,
+    "防蹭": 0.743802,
+    "留尾": 0.280992,
+    "爆发": 0.479339,
+    "底力": 0.38843,
+    "交互": 0.61157,
+    "轴交互": 0.082645,
+    "爬梯交互": 0.322314,
+    "定拍": 0.528926,
+    "双押": 0.966942,
+    "扫键": 0.975207,
+    "死镰": 0.165289,
+    "错位": 0.768595,
+    "手速": 0.603306,
+    "纵连": 0.495868,
+    "跳拍": 0.677686,
+    "如龙": 0.752066,
+    "协调": 0.710744,
+    "撞尾": 0.669421
+  },
+  "ensemble_members": 5,
+  "thresholds": {
+    "节奏": 0.575,
+    "延迟星星": 0.55,
+    "拆弹": 0.55,
+    "管子": 0.7,
+    "定位": 0.55,
+    "散打": 0.55,
+    "飞手": 0.55,
+    "防蹭": 0.625,
+    "留尾": 0.55,
+    "爆发": 0.625,
+    "底力": 0.55,
+    "交互": 0.55,
+    "轴交互": 0.8,
+    "爬梯交互": 0.55,
+    "定拍": 0.55,
+    "双押": 0.55,
+    "扫键": 0.55,
+    "死镰": 0.55,
+    "错位": 0.7,
+    "手速": 0.55,
+    "纵连": 0.55,
+    "跳拍": 0.55,
+    "如龙": 0.825,
+    "协调": 0.675,
+    "撞尾": 0.55
+  },
+  "training_sources": [
+    "maimai.xls",
+    "https://www.bilibili.com/opus/978826006029664264",
+    "https://www.bilibili.com/opus/912886214932037655",
+    "https://www.bilibili.com/opus/29693067423444838",
+    "https://w.atwiki.jp/simai/pages/1002.html"
+  ],
+  "supervision": "Uncapped XLS candidate weak targets plus dual-model consensus and traceable external evidence, grouped holdout, class weighting, early stopping and validation threshold calibration",
+  "quality_gate": {
+    "minimum_validation_precision": 0.8,
+    "minimum_holdout_precision": 0.8,
+    "minimum_holdout_f1": 0.4,
+    "minimum_holdout_predictions": 1,
+    "minimum_holdout_recall": 0.25,
+    "minimum_candidate_support": 5,
+    "minimum_target_positives": 2,
+    "passed": true
+  },
+  "split": "song_grouped_train_validation_holdout",
+  "metrics": {
+    "validation": {
+      "micro_accuracy": 0.8966666666666666,
+      "micro_precision": 0.9789915966386554,
+      "micro_recall": 0.803448275862069,
+      "micro_f1": 0.8825757575757576,
+      "positive_cells": 290.0,
+      "predicted_positive_cells": 238.0
+    },
+    "holdout": {
+      "micro_accuracy": 0.895,
+      "micro_precision": 0.958041958041958,
+      "micro_recall": 0.8430769230769231,
+      "micro_f1": 0.8968903436988543,
+      "positive_cells": 325.0,
+      "predicted_positive_cells": 286.0
+    }
+  },
+  "best_epoch": 480,
+  "best_valid_loss": 0.35128345,
   "loss_file": "static/chart_tag_loss.json",
   "model_file": "static/maimai_chart_tag_model.npz",
-  "created_at": "2026-08-03T09:07:46+08:00"
+  "created_at": "2026-08-06T05:20:28+08:00"
 }

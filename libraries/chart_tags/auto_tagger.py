@@ -23,6 +23,7 @@ from .chart_metadata import TAG_WINDOW_HINTS, _review_collision, _slide_collisio
 from .constants import (
     ALLOWED_TAGS,
     DIFFICULTY_NAMES,
+    MAX_FINAL_TAGS,
     MIN_TAG_DS,
     RULE_ENGINE,
     TAG_CATEGORIES,
@@ -31,21 +32,29 @@ from .constants import (
     TARGET_LEVEL_INDEXES,
 )
 from .local.maidata_parser import MaidataChart, MaidataSong, parse_maidata, parse_maidata_metadata
-from .local.structure_tagger import extract_features, extract_features_with_windows
+from .local.structure_tagger import analyze_chart_tags, extract_features, extract_features_with_windows
 from .official_downloader import DEFAULT_LEVELS_PATH, OfficialChartDownloader, validate_mode, validate_range
-from .rule_tags import filter_allowed_tags, select_final_tags
+from .rule_tags import filter_allowed_tags, select_final_tags, tag_weight
 
 CN_TZ = timezone(timedelta(hours=8))
 MODEL_FILE = Root / "static" / "maimai_chart_tag_model.npz"
 MODEL_META_FILE = Root / "static" / "maimai_chart_tag_model.json"
 MODEL_NAME = RULE_ENGINE
 MODEL_THRESHOLD = 0.50
-MODEL_FALLBACK_THRESHOLD = 0.25
+MODEL_FALLBACK_THRESHOLD = 0.35
 CATALOG_MIN_DS = 10.0
 CATALOG_MAX_DS = 15.0
 MAPPING_VERSION = 3
 MAX_RESULT_CACHE = 256
 MAX_SONG_CACHE = 32
+TIMING_TAGS = frozenset({"节奏", "跳拍", "爆发", "延迟星星", "拆弹"})
+MAX_TIMING_TAGS = 3
+# These labels remain valid model candidates, but are intentionally used as
+# fill-ins only when a chart has fewer than three more specific structures.
+# Keeping them in the probability map preserves the audit trail and avoids
+# turning a display cap into a negative training signal.
+FALLBACK_RUNTIME_TAGS = frozenset({"扫键", "手速", "底力"})
+RARE_STRUCTURE_TAGS = frozenset({"死镰", "轴交互", "爬梯交互"})
 
 
 def now_text() -> str:
@@ -78,6 +87,93 @@ def _relative_path(path: Path) -> str:
         return path.as_posix()
 
 
+def _select_model_tags(
+    candidate_scores: dict[str, float],
+    *,
+    protected_tags: list[str] | tuple[str, ...] = (),
+) -> list[str]:
+    """Keep high-confidence timing evidence from being crowded out.
+
+    The weak XLS targets deliberately retain more candidates than the five
+    user-facing slots.  Reserve most slots for timing evidence when it clears
+    the trained thresholds, then fill the remaining slot from other model
+    candidates.  The two star-timing names describe the same display family,
+    so only the higher-scoring one is retained.
+    """
+    cleaned_scores: dict[str, float] = {}
+    for raw_tag, raw_score in candidate_scores.items():
+        normalized = filter_allowed_tags([str(raw_tag)])
+        if not normalized:
+            continue
+        try:
+            score = float(raw_score)
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(score) and score > 0:
+            tag = normalized[0]
+            cleaned_scores[tag] = max(cleaned_scores.get(tag, 0.0), score)
+
+    protected = [
+        tag for tag in filter_allowed_tags(protected_tags)
+        if tag in cleaned_scores
+    ]
+    protected_scores = {tag: cleaned_scores[tag] for tag in protected}
+    protected, _ = select_final_tags(protected_scores, max_tags=MAX_FINAL_TAGS)
+    protected_set = set(protected)
+
+    timing = {
+        tag: score for tag, score in cleaned_scores.items()
+        if tag in TIMING_TAGS and tag not in protected_set
+    }
+    if "延迟星星" in timing and "拆弹" in timing:
+        weaker = "延迟星星" if timing["延迟星星"] < timing["拆弹"] else "拆弹"
+        timing.pop(weaker, None)
+    timing_ranked = sorted(
+        timing,
+        key=lambda tag: (-cleaned_scores[tag], -tag_weight(tag), tag),
+    )
+    timing_limit = min(MAX_TIMING_TAGS, max(0, MAX_FINAL_TAGS - len(protected)))
+    timing_tags: list[str] = []
+    # A strong local burst is a distinct difficulty, not a generic rhythm
+    # synonym, so reserve it before filling the remaining timing slots.
+    if "爆发" in timing and cleaned_scores["爆发"] >= 0.70 and timing_limit:
+        timing_tags.append("爆发")
+    star_family = [tag for tag in ("延迟星星", "拆弹") if tag in timing]
+    if star_family and len(timing_tags) < timing_limit:
+        timing_tags.append(max(star_family, key=lambda tag: (cleaned_scores[tag], -tag_weight(tag))))
+    timing_tags.extend(
+        tag for tag in timing_ranked
+        if tag not in timing_tags
+    )
+    timing_tags = timing_tags[:timing_limit]
+    remaining = {
+        tag: score for tag, score in cleaned_scores.items()
+        if tag not in protected_set and tag not in set(timing_tags)
+    }
+    distinctive_remaining = {
+        tag for tag in remaining if tag not in FALLBACK_RUNTIME_TAGS
+    }
+    if len(distinctive_remaining) >= 3:
+        remaining = {
+            tag: score for tag, score in remaining.items()
+            if tag not in FALLBACK_RUNTIME_TAGS
+        }
+    slots = max(0, MAX_FINAL_TAGS - len(protected) - len(timing_tags))
+    rare_candidates = [
+        (tag, score) for tag, score in remaining.items()
+        if tag in RARE_STRUCTURE_TAGS and score >= 0.70
+    ]
+    rare_candidates.sort(key=lambda item: (-item[1], -tag_weight(item[0]), item[0]))
+    rare_tags = [tag for tag, _score in rare_candidates[:1]] if slots else []
+    remaining = {
+        tag: score for tag, score in remaining.items()
+        if tag not in set(rare_tags)
+    }
+    slots = max(0, slots - len(rare_tags))
+    other_tags, _ = select_final_tags(remaining, max_tags=slots) if slots else ([], {})
+    return filter_allowed_tags([*protected, *timing_tags, *rare_tags, *other_tags])[:MAX_FINAL_TAGS]
+
+
 class LocalChartModel:
     """Load the trained model once and reject stale/foreign model metadata."""
 
@@ -90,6 +186,7 @@ class LocalChartModel:
         self.label_names: list[str] = []
         self.weights: np.ndarray | None = None
         self.bias: np.ndarray | None = None
+        self.thresholds: np.ndarray | None = None
         self.mean: np.ndarray | None = None
         self.scale: np.ndarray | None = None
         self._mtime: tuple[int, int, int] | None = None
@@ -114,19 +211,32 @@ class LocalChartModel:
             bias = np.asarray(archive["bias"], dtype=np.float64)
             mean = np.asarray(archive["mean"], dtype=np.float64)
             scale = np.asarray(archive["scale"], dtype=np.float64)
+            raw_thresholds = np.asarray(archive["thresholds"], dtype=np.float64) if "thresholds" in archive.files else None
         if label_names != list(ALLOWED_TAGS):
             raise ValueError("模型标签列表与当前规则不一致")
-        if weights.shape != (len(feature_names), len(label_names)):
+        if weights.shape not in {
+            (len(feature_names), len(label_names)),
+            (int(metadata.get("ensemble_members", 0) or 0), len(feature_names), len(label_names)),
+        }:
             raise ValueError("本地标签模型权重形状与特征元数据不一致")
         if mean.shape != (len(feature_names),) or scale.shape != (len(feature_names),):
             raise ValueError("本地标签模型归一化参数与特征元数据不一致")
         if bias.shape != (len(label_names),):
-            raise ValueError("本地标签模型偏置与标签元数据不一致")
+            if weights.ndim != 3 or bias.shape != (weights.shape[0], len(label_names)):
+                raise ValueError("本地标签模型偏置与标签元数据不一致")
+        if raw_thresholds is None:
+            thresholds = np.full(len(label_names), MODEL_THRESHOLD, dtype=np.float64)
+        else:
+            thresholds = np.asarray(raw_thresholds, dtype=np.float64)
+            if thresholds.shape != (len(label_names),) or not np.all(np.isfinite(thresholds)):
+                raise ValueError("本地标签模型逐标签阈值与标签元数据不一致")
+            thresholds = np.clip(thresholds, MODEL_THRESHOLD, 0.99)
         self.metadata = metadata
         self.feature_names = feature_names
         self.label_names = label_names
         self.weights = weights
         self.bias = bias
+        self.thresholds = thresholds
         self.mean = mean
         self.scale = np.where(scale == 0, 1.0, scale)
         self.loaded_at = now_text()
@@ -142,6 +252,7 @@ class LocalChartModel:
         self._load()
         assert self.weights is not None
         assert self.bias is not None
+        assert self.thresholds is not None
         assert self.mean is not None
         assert self.scale is not None
         if include_evidence:
@@ -150,6 +261,7 @@ class LocalChartModel:
         else:
             features = extract_features(chart)
             windows = []
+        rule_analysis = analyze_chart_tags(chart)
         candidates, _excluded = _slide_collision_candidates(chart, include_details=include_evidence)
         accepted = _review_collision(candidates)
         window_count = min(20, int(features.get("local_window_count", 0.0) or 0))
@@ -158,6 +270,24 @@ class LocalChartModel:
             for key, value in features.items()
             if isinstance(value, (int, float)) and np.isfinite(float(value))
         }
+        for tag in filter_allowed_tags(rule_analysis.get("raw_tags") or []):
+            values[f"rule.candidate.{tag}"] = 1.0
+        for tag in filter_allowed_tags(rule_analysis.get("difficulty_tags") or []):
+            values[f"rule.difficulty.{tag}"] = 1.0
+        for tag, score in (rule_analysis.get("candidate_scores") or {}).items():
+            try:
+                numeric_score = float(score)
+            except (TypeError, ValueError):
+                continue
+            if np.isfinite(numeric_score):
+                values[f"rule.score.{tag}"] = numeric_score
+        for tag, score in (rule_analysis.get("difficulty_scores") or {}).items():
+            try:
+                numeric_score = float(score)
+            except (TypeError, ValueError):
+                continue
+            if np.isfinite(numeric_score):
+                values[f"rule.difficulty_score.{tag}"] = numeric_score
         values.update({
             "context.ds": float(chart.ds or 0.0),
             "context.bpm": float(chart.bpm or song.whole_bpm or 0.0),
@@ -171,21 +301,48 @@ class LocalChartModel:
         })
         vector = np.asarray([values.get(name, 0.0) for name in self.feature_names], dtype=np.float64)
         normalized = (vector - self.mean) / self.scale
-        logits = normalized @ self.weights + self.bias
-        probabilities = 1.0 / (1.0 + np.exp(-np.clip(logits, -40.0, 40.0)))
+        if self.weights.ndim == 3:
+            logits = np.asarray([
+                normalized @ member_weights + member_bias
+                for member_weights, member_bias in zip(self.weights, self.bias)
+            ])
+            probabilities = 1.0 / (1.0 + np.exp(-np.clip(logits, -40.0, 40.0)))
+            probabilities = probabilities.mean(axis=0)
+        else:
+            logits = normalized @ self.weights + self.bias
+            probabilities = 1.0 / (1.0 + np.exp(-np.clip(logits, -40.0, 40.0)))
         probability_map = {
             tag: round(float(probability), 6)
             for tag, probability in zip(self.label_names, probabilities)
         }
-        candidate_scores = {tag: value for tag, value in probability_map.items() if value >= MODEL_THRESHOLD}
-        if not candidate_scores and probability_map:
-            top_tag, top_score = max(probability_map.items(), key=lambda item: item[1])
-            if top_score >= MODEL_FALLBACK_THRESHOLD:
-                candidate_scores = {top_tag: top_score}
-        model_tags, model_scores = select_final_tags(candidate_scores)
+        candidate_scores = {
+            tag: value
+            for tag, value, threshold in zip(self.label_names, probabilities, self.thresholds)
+            if value >= threshold
+        }
+        selection_fallback = False
+        if not candidate_scores and len(probabilities):
+            # Keep a low-confidence result auditable instead of silently
+            # turning a valid chart into an empty annotation.  This is still
+            # the local model probability, never a rule-only label.
+            fallback_index = int(np.argmax(probabilities))
+            fallback_score = float(probabilities[fallback_index])
+            if fallback_score >= MODEL_FALLBACK_THRESHOLD:
+                candidate_scores[self.label_names[fallback_index]] = fallback_score
+                selection_fallback = True
+        model_tags = _select_model_tags(
+            candidate_scores,
+            protected_tags=["撞尾"] if accepted else (),
+        )
+        model_scores = {
+            tag: float(candidate_scores[tag])
+            for tag in model_tags
+            if tag in candidate_scores
+        }
         return {
             "model_tags": filter_allowed_tags(model_tags),
             "model_scores": {tag: _round(score, 6) for tag, score in model_scores.items()},
+            "model_selection": "fallback_probability" if selection_fallback else "calibrated_threshold",
             "model_probabilities": probability_map,
             "features": {key: _round(value, 6) for key, value in features.items()},
             "windows": windows if include_evidence else [],
@@ -202,6 +359,8 @@ class LocalChartModel:
                 "best_epoch": self.metadata.get("best_epoch"),
                 "best_valid_loss": self.metadata.get("best_valid_loss"),
                 "feature_count": len(self.feature_names),
+                "ensemble_members": self.metadata.get("ensemble_members", 1),
+                "thresholds": self.metadata.get("thresholds", {}),
                 "model_file": _relative_path(self.model_file),
             },
         }
@@ -222,10 +381,12 @@ def _tag_positions(
                     "raw": f"{item['slide_raw']} -> {item['target_raw']}",
                     "position": {
                         "slide_time": item["slide_start"],
-                        "passed_time": item["passed_time"],
+                        "terminal_start": item.get("terminal_start"),
+                        "slide_end": item.get("slide_end"),
                         "target_time": item["target_time"],
                         "area": item["area"],
                         "delta": item["delta"],
+                        "timing_class": item.get("timing_class", ""),
                     },
                 }
                 for item in collisions[:3]
@@ -596,9 +757,21 @@ class AutoTagJob:
         if chart is None:
             raise ValueError("谱面难度不存在")
         prediction = self.model.predict(song, chart, include_evidence=include_evidence)
-        model_tags = filter_allowed_tags(prediction.get("model_tags", []))
+        protected_tags = ["撞尾"] if prediction.get("accepted_collision_ids") else []
+        model_tags = _select_model_tags({
+            str(tag): float(score)
+            for tag, score in (prediction.get("model_scores") or {}).items()
+            if isinstance(score, (int, float))
+        }, protected_tags=protected_tags)
         model_scores = prediction.get("model_scores") if isinstance(prediction.get("model_scores"), dict) else {}
-        final_tags, final_scores = select_final_tags({tag: float(model_scores.get(tag, TAG_WEIGHTS.get(tag, 0.5))) for tag in model_tags})
+        final_tags = _select_model_tags({
+            tag: float(model_scores.get(tag, TAG_WEIGHTS.get(tag, 0.5)))
+            for tag in model_tags
+        }, protected_tags=protected_tags)
+        final_scores = {
+            tag: round(float(model_scores.get(tag, TAG_WEIGHTS.get(tag, 0.5))), 4)
+            for tag in final_tags
+        }
         item = _base_item(ref)
         item.update({
             "model_tags": model_tags,

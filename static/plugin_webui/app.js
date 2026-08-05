@@ -155,10 +155,12 @@ function renderAutoTagsStatus(data) {
   const taskPercent = taskTotal ? Math.min(100, Math.round(processed * 1000 / taskTotal) / 10) : (data.running ? 0 : 100);
   const taskName = data.task === 'download' ? '下载谱面' : data.task === 'analysis' ? '谱面分析' : '暂无任务';
   const statusName = data.running ? '运行中' : ({ completed: '已完成', stopped: '已停止', failed: '失败' }[data.status] || '未运行');
-  autoModelBadge.textContent = data.model_metadata?.best_epoch ? '模型已加载' : '模型待加载';
+  const modelLoaded = Boolean(data.model_metadata?.best_epoch || data.model_metadata?.model_type);
+  autoModelBadge.textContent = modelLoaded ? '模型已加载' : data.model_error ? '模型不可用' : '模型待加载';
+  const statusMessage = data.error || data.last_error || data.model_error || ('模型：' + (data.model_file || '未找到'));
   autoTagsStatusBox.innerHTML = '<div class="tag-hero"><div><b>' + percent + '%</b><span>本地谱面已分析</span></div><div class="tag-ring" style="--p:' + percent + '%"></div></div>' +
     '<div class="tag-stats"><div><span>有效谱面</span><b>' + total + '</b></div><div><span>已分析</span><b>' + analyzed + '</b></div><div><span>有模型标签</span><b>' + tagged + '</b></div></div>' +
-    '<div class="auto-progress"><div class="auto-progress-head"><strong>' + taskName + '</strong><span class="badge">' + statusName + '</span></div><div class="auto-progress-bar"><span style="width:' + taskPercent + '%"></span></div><p class="muted">' + processed + ' / ' + taskTotal + ' · ' + escapeHtml(data.current || data.message || '等待操作') + '</p><p class="muted">' + escapeHtml(data.error || data.last_error || '模型：' + (data.model_file || '未找到')) + '</p></div>';
+    '<div class="auto-progress"><div class="auto-progress-head"><strong>' + taskName + '</strong><span class="badge">' + statusName + '</span></div><div class="auto-progress-bar"><span style="width:' + taskPercent + '%"></span></div><p class="muted">' + processed + ' / ' + taskTotal + ' · ' + escapeHtml(data.current || data.message || '等待操作') + '</p><p class="muted">' + escapeHtml(statusMessage) + '</p></div>';
 }
 
 async function loadAutoTagsStatus() {
