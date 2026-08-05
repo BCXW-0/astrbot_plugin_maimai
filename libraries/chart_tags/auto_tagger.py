@@ -40,6 +40,7 @@ MODEL_FILE = Root / "static" / "maimai_chart_tag_model.npz"
 MODEL_META_FILE = Root / "static" / "maimai_chart_tag_model.json"
 MODEL_NAME = RULE_ENGINE
 MODEL_THRESHOLD = 0.50
+MODEL_FALLBACK_THRESHOLD = 0.25
 CATALOG_MIN_DS = 10.0
 CATALOG_MAX_DS = 15.0
 MAPPING_VERSION = 3
@@ -89,7 +90,6 @@ class LocalChartModel:
         self.label_names: list[str] = []
         self.weights: np.ndarray | None = None
         self.bias: np.ndarray | None = None
-        self.thresholds: np.ndarray | None = None
         self.mean: np.ndarray | None = None
         self.scale: np.ndarray | None = None
         self._mtime: tuple[int, int, int] | None = None
@@ -114,32 +114,19 @@ class LocalChartModel:
             bias = np.asarray(archive["bias"], dtype=np.float64)
             mean = np.asarray(archive["mean"], dtype=np.float64)
             scale = np.asarray(archive["scale"], dtype=np.float64)
-            raw_thresholds = np.asarray(archive["thresholds"], dtype=np.float64) if "thresholds" in archive.files else None
         if label_names != list(ALLOWED_TAGS):
             raise ValueError("模型标签列表与当前规则不一致")
-        if weights.shape not in {
-            (len(feature_names), len(label_names)),
-            (int(metadata.get("ensemble_members", 0) or 0), len(feature_names), len(label_names)),
-        }:
+        if weights.shape != (len(feature_names), len(label_names)):
             raise ValueError("本地标签模型权重形状与特征元数据不一致")
         if mean.shape != (len(feature_names),) or scale.shape != (len(feature_names),):
             raise ValueError("本地标签模型归一化参数与特征元数据不一致")
         if bias.shape != (len(label_names),):
-            if weights.ndim != 3 or bias.shape != (weights.shape[0], len(label_names)):
-                raise ValueError("本地标签模型偏置与标签元数据不一致")
-        if raw_thresholds is None:
-            thresholds = np.full(len(label_names), MODEL_THRESHOLD, dtype=np.float64)
-        else:
-            thresholds = np.asarray(raw_thresholds, dtype=np.float64)
-            if thresholds.shape != (len(label_names),) or not np.all(np.isfinite(thresholds)):
-                raise ValueError("本地标签模型逐标签阈值与标签元数据不一致")
-            thresholds = np.clip(thresholds, MODEL_THRESHOLD, 0.99)
+            raise ValueError("本地标签模型偏置与标签元数据不一致")
         self.metadata = metadata
         self.feature_names = feature_names
         self.label_names = label_names
         self.weights = weights
         self.bias = bias
-        self.thresholds = thresholds
         self.mean = mean
         self.scale = np.where(scale == 0, 1.0, scale)
         self.loaded_at = now_text()
@@ -155,7 +142,6 @@ class LocalChartModel:
         self._load()
         assert self.weights is not None
         assert self.bias is not None
-        assert self.thresholds is not None
         assert self.mean is not None
         assert self.scale is not None
         if include_evidence:
@@ -185,25 +171,17 @@ class LocalChartModel:
         })
         vector = np.asarray([values.get(name, 0.0) for name in self.feature_names], dtype=np.float64)
         normalized = (vector - self.mean) / self.scale
-        if self.weights.ndim == 3:
-            logits = np.asarray([
-                normalized @ member_weights + member_bias
-                for member_weights, member_bias in zip(self.weights, self.bias)
-            ])
-            probabilities = 1.0 / (1.0 + np.exp(-np.clip(logits, -40.0, 40.0)))
-            probabilities = probabilities.mean(axis=0)
-        else:
-            logits = normalized @ self.weights + self.bias
-            probabilities = 1.0 / (1.0 + np.exp(-np.clip(logits, -40.0, 40.0)))
+        logits = normalized @ self.weights + self.bias
+        probabilities = 1.0 / (1.0 + np.exp(-np.clip(logits, -40.0, 40.0)))
         probability_map = {
             tag: round(float(probability), 6)
             for tag, probability in zip(self.label_names, probabilities)
         }
-        candidate_scores = {
-            tag: value
-            for tag, value, threshold in zip(self.label_names, probabilities, self.thresholds)
-            if value >= threshold
-        }
+        candidate_scores = {tag: value for tag, value in probability_map.items() if value >= MODEL_THRESHOLD}
+        if not candidate_scores and probability_map:
+            top_tag, top_score = max(probability_map.items(), key=lambda item: item[1])
+            if top_score >= MODEL_FALLBACK_THRESHOLD:
+                candidate_scores = {top_tag: top_score}
         model_tags, model_scores = select_final_tags(candidate_scores)
         return {
             "model_tags": filter_allowed_tags(model_tags),
@@ -224,8 +202,6 @@ class LocalChartModel:
                 "best_epoch": self.metadata.get("best_epoch"),
                 "best_valid_loss": self.metadata.get("best_valid_loss"),
                 "feature_count": len(self.feature_names),
-                "ensemble_members": self.metadata.get("ensemble_members", 1),
-                "thresholds": self.metadata.get("thresholds", {}),
                 "model_file": _relative_path(self.model_file),
             },
         }
@@ -246,12 +222,10 @@ def _tag_positions(
                     "raw": f"{item['slide_raw']} -> {item['target_raw']}",
                     "position": {
                         "slide_time": item["slide_start"],
-                        "terminal_start": item.get("terminal_start"),
-                        "slide_end": item.get("slide_end"),
+                        "passed_time": item["passed_time"],
                         "target_time": item["target_time"],
                         "area": item["area"],
                         "delta": item["delta"],
-                        "timing_class": item.get("timing_class", ""),
                     },
                 }
                 for item in collisions[:3]

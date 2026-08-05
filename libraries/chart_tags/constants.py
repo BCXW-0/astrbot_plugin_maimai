@@ -31,9 +31,8 @@ ALLOWED_TAGS = [
     "撞尾",
 ]
 
-# Tags with a per-constant difficulty prevalence cap in the XLS before the
-# requested sensitivity adjustment.
-BASE_DIFFICULTY_CAPS: dict[str, float] = {
+# Tags with a per-constant difficulty prevalence cap in the XLS.
+DIFFICULTY_CAPS: dict[str, float] = {
     "管子": 0.25,
     "定位": 0.25,
     "散打": 0.20,
@@ -54,15 +53,6 @@ BASE_DIFFICULTY_CAPS: dict[str, float] = {
     "跳拍": 0.25,
     "拆弹": 0.25,
     "协调": 0.20,
-}
-
-# The current review permits a 75% sensitivity increase.  The adjustment is
-# applied to the difficult-label prevalence ceilings, while the final output
-# remains bounded by MAX_FINAL_TAGS below.
-SENSITIVITY_MULTIPLIER = 1.75
-DIFFICULTY_CAPS: dict[str, float] = {
-    tag: min(1.0, cap * SENSITIVITY_MULTIPLIER)
-    for tag, cap in BASE_DIFFICULTY_CAPS.items()
 }
 
 # Difficulty names from the XLS.  ``拆弹`` is the difficult form of the
@@ -119,15 +109,11 @@ TAG_ALIASES = {
 }
 
 TARGET_LEVEL_INDEXES = [2, 3, 4]
-# Training evidence is collected from 12.6-15.0, while the resulting local
-# model is also allowed to annotate valid 12.0+ charts at runtime.
-RUNTIME_MIN_DS = 12.0
-TRAIN_MIN_DS = 12.6
-MIN_TAG_DS = RUNTIME_MIN_DS
+MIN_TAG_DS = 12.6
 MAX_TAG_DS = 15.0
-TAG_RULE_VERSION = 17
+TAG_RULE_VERSION = 15
 RULE_SPEC_SOURCE = "maimai.xls"
-RULE_ENGINE = "local_xls_dual_model_consensus"
+RULE_ENGINE = "local_xls_rule_engine"
 
 TAG_CATEGORIES = {
     "节奏": "节奏类配置",
