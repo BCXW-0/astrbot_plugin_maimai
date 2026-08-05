@@ -1,13 +1,15 @@
 {
-  "version": 2,
-  "model_type": "multilabel_logistic_regression",
-  "analysis_engine": "local_xls_rule_engine",
+  "version": 4,
+  "model_type": "calibrated_ensemble_multilabel_logistic",
+  "analysis_engine": "local_xls_dual_model_consensus",
   "rule_spec_source": "maimai.xls",
-  "rule_version": 15,
+  "rule_version": 17,
   "dataset": "static/chart_tag_dataset.jsonl.gz",
-  "records": 1732,
-  "train_records": 1386,
-  "valid_records": 346,
+  "records": 125,
+  "effective_records": 125,
+  "train_records": 75,
+  "valid_records": 25,
+  "holdout_records": 25,
   "feature_count": 89,
   "feature_names": [
     "context.accepted_collision_count",
@@ -100,6 +102,8 @@
     "feature.zone_violation_peak",
     "feature.zone_violation_ratio"
   ],
+  "training_target_field": "training_tags",
+  "training_target_definition": "双模型共识标签；final_tags 仅为审计展示标签，不作为训练目标",
   "labels": [
     "节奏",
     "延迟星星",
@@ -127,9 +131,71 @@
     "协调",
     "撞尾"
   ],
-  "best_epoch": 220,
-  "best_valid_loss": 0.4757357,
+  "ensemble_members": 5,
+  "thresholds": {
+    "节奏": 0.8,
+    "延迟星星": 0.8,
+    "拆弹": 0.8,
+    "管子": 0.55,
+    "定位": 0.8,
+    "散打": 0.8,
+    "飞手": 0.8,
+    "防蹭": 0.8,
+    "留尾": 0.8,
+    "爆发": 0.8,
+    "底力": 0.8,
+    "交互": 0.8,
+    "轴交互": 0.8,
+    "爬梯交互": 0.8,
+    "定拍": 0.8,
+    "双押": 0.875,
+    "扫键": 0.8,
+    "死镰": 0.8,
+    "错位": 0.8,
+    "手速": 0.8,
+    "纵连": 0.8,
+    "跳拍": 0.8,
+    "如龙": 0.8,
+    "协调": 0.6,
+    "撞尾": 0.8
+  },
+  "training_sources": [
+    "maimai.xls",
+    "https://www.bilibili.com/opus/978826006029664264",
+    "https://www.bilibili.com/opus/912886214932037655",
+    "https://www.bilibili.com/opus/29693067423444838",
+    "https://w.atwiki.jp/simai/pages/1002.html"
+  ],
+  "supervision": "XLS rule labels with dual-model consensus targets, traceable external sources as supervision weights, grouped holdout, class weighting, early stopping and validation threshold calibration",
+  "quality_gate": {
+    "minimum_validation_precision": 0.8,
+    "minimum_holdout_precision": 0.8,
+    "minimum_holdout_f1": 0.4,
+    "minimum_holdout_predictions": 1,
+    "passed": true
+  },
+  "split": "song_grouped_train_validation_holdout",
+  "metrics": {
+    "validation": {
+      "micro_accuracy": 0.9376,
+      "micro_precision": 0.9166666666666666,
+      "micro_recall": 0.3728813559322034,
+      "micro_f1": 0.5301204819277109,
+      "positive_cells": 59.0,
+      "predicted_positive_cells": 24.0
+    },
+    "holdout": {
+      "micro_accuracy": 0.9616,
+      "micro_precision": 0.9629629629629629,
+      "micro_recall": 0.5306122448979592,
+      "micro_f1": 0.6842105263157895,
+      "positive_cells": 49.0,
+      "predicted_positive_cells": 27.0
+    }
+  },
+  "best_epoch": 480,
+  "best_valid_loss": 0.60019277,
   "loss_file": "static/chart_tag_loss.json",
   "model_file": "static/maimai_chart_tag_model.npz",
-  "created_at": "2026-08-03T09:07:46+08:00"
+  "created_at": "2026-08-05T22:12:18+08:00"
 }

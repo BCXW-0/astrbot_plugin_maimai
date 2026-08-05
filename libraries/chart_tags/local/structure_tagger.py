@@ -19,7 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ..constants import DIFFICULTY_CAPS, GENERIC_TAGS, TAG_WEIGHTS
+from ..constants import DIFFICULTY_CAPS, GENERIC_TAGS, RULE_ENGINE, TAG_RULE_VERSION, TAG_WEIGHTS
 from ..rule_tags import filter_allowed_tags, tag_weight
 from .maidata_parser import MaidataChart, NoteEvent
 
@@ -848,8 +848,8 @@ def analyze_chart_tags(chart: MaidataChart) -> dict[str, Any]:
         "windows": windows[:20],
         "tag_evidence": evidence,
         "confidence": round(min(1.0, max(0.0, sum(scores.values()) / max(len(scores), 1))), 4),
-        "source": "local_xls_rule_engine",
-        "rule_version": 15,
+        "source": RULE_ENGINE,
+        "rule_version": TAG_RULE_VERSION,
         "difficulty_caps": DIFFICULTY_CAPS,
     }
 

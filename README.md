@@ -7,7 +7,7 @@ _✨ 舞萌 DX · 查歌查分 · B50 · 推分成长 · 成绩同步 ✨_
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/AstrBotDevs/AstrBot)
-[![Version](https://img.shields.io/badge/Version-2.4.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
+[![Version](https://img.shields.io/badge/Version-2.5.0-brightgreen.svg)](https://github.com/BCXW-0/astrbot_plugin_maimai)
 [![GitHub](https://img.shields.io/badge/作者-BCXW--0-blue)](https://github.com/BCXW-0)
 
 </div>
@@ -186,19 +186,27 @@ http://127.0.0.1:8796/?token=你的token
 
 训练元数据直接读取插件内的 `static/Levels`，只分析 `lv_4`、`lv_5`、`lv_6` 中定数 `12.6 - 15.0` 的难度。WebUI、吃分推荐和锐评 B50 的谱面标签都使用同一个本地模型；OneCat 仅用于下载谱面文件。
 
-规则引擎按 XLS 的候选特征、难点特征和同定数占比上限工作，使用连续两小节局部窗口，输出最多 5 个主要标签，并为每个标签保存窗口、事件原始语法或撞尾候选位置。数据集保留完整 `inote`、事件序列、BPM 变化、定数、文件 SHA-256、排除的 Ex 目标和标签位置，便于逐条审阅。
+规则引擎按 XLS 的候选特征、难点特征和同定数占比上限工作，使用连续两小节局部窗口，输出最多 5 个主要标签，并为每个标签保存窗口、事件原始语法或撞尾候选位置。数据集保留完整 `inote`、事件序列、BPM 变化、定数、文件 SHA-256、排除的 Ex 目标和标签位置，便于逐条审阅。模型训练目标也先按谱面特征分数限制为最多 5 个标签；同定数占比裁剪只用于审计展示，不会制造训练负样本。
 
 撞尾依据三篇撞尾/无理配置文章和 [simai 语法说明](https://w.atwiki.jp/simai/pages/1002.html)：以目标时间减去 Slide 进入路径区域时间的有符号 `delta` 判定，危险范围为 `[-0.05s, +0.20s]`；`delta=0` 为绝对撞尾，`0<delta<=0.15s` 为硬撞尾，两侧边缘为软撞尾；最后 A 区覆盖到 Slide 结束并保留后 0.20 秒。原始语法含 `x` 的 Ex 目标单独记录并排除，孤立软边界不直接打标。
 
 运行：
 
 ```bash
-PYTHONPATH=.. python3 -m astrbot_plugin_maimaidx.libraries.chart_tags.training_dataset
+PYTHONPATH=.. python3 -m astrbot_plugin_maimaidx.libraries.chart_tags.training_dataset \
+  --reviews /path/to/model_reviews.json \
+  --levels static/Levels
 ```
 
 产物：`static/chart_tag_manifest.json`、`static/chart_tag_dataset.jsonl.gz`、`static/chart_tag_audit.json.gz`、`static/chart_tag_loss.json`、`static/chart_tag_training_run.json`、`static/maimai_chart_tag_model.npz`、`static/maimai_chart_tag_model.json` 和 [`CHART_TAG_REPORT.md`](CHART_TAG_REPORT.md)。压缩文件保留完整训练记录，报告包含候选/最终标签使用率和全部有效难度的逐谱面标注。
 
+当前训练产物使用 125 条带可追溯媒体来源的高置信样本（严格 80% 重合样本不足时按重合度降级选择），按歌曲分组划分训练/验证/留出集，并使用五成员集成、早停、类别不平衡权重和逐标签阈值校准。只有验证集 precision ≥ 0.80、留出集 precision ≥ 0.80 且 F1 ≥ 0.40 的模型才会被写入；本次留出集 precision 为 96.30%，F1 为 68.42%。
+
 `static/Levels` 由管理员第一次使用 WebUI 时手动下载，不随仓库提交；训练元数据和模型文件可以提交到仓库。运行时只按谱面文件即时生成标签结果，不保存标签库。
+
+### 训练审核口径
+
+新增训练审核记录必须同时通过当前对话模型 `5.6-Luna Max` 与 AstrBot Provider `google_gemini/gemini-2.5-pro`，只有两者标签集合完全一致的谱面才进入联网证据校验；请求失败、输出包含工具调用内容、不是纯 JSON 或标签不一致，都会被排除。历史上已经通过三模型一致性审核的记录继续兼容保留，不会被当作新的双模型记录。
 
 ## 数据与安全
 

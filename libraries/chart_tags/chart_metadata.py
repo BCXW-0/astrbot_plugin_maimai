@@ -22,8 +22,8 @@ from .constants import (
     RULE_SPEC_SOURCE,
     TAG_RULE_VERSION,
 )
-from .local.maidata_parser import MaidataChart, NoteEvent, parse_maidata
-from .local.structure_tagger import analyze_chart_tags
+from .local.maidata_parser import MaidataChart, NoteEvent, parse_maidata, parse_maidata_metadata
+from .local.structure_tagger import _ring_distance, analyze_chart_tags
 from .rule_tags import filter_allowed_tags, select_final_tags, sort_tags_by_weight, tag_weight
 from .storage import write_json_atomic, write_json_gzip_atomic
 
@@ -166,38 +166,55 @@ def _slide_collision_candidates(
         if len(path) < 2:
             continue
         area = path[-1]
-        passed_time = float(slide.time) + float(slide.duration)
-        slide_end = passed_time
+        slide_end = float(slide.time) + float(slide.duration)
+        segment_lengths = [
+            _ring_distance(path[index - 1], path[index])
+            for index in range(1, len(path))
+        ]
+        path_length = max(sum(segment_lengths), 1)
+        terminal_length = max(segment_lengths[-1], 1)
+        # The terminal area starts before the nominal Slide end.  This is a
+        # conservative geometry estimate for simai's final path zone; the
+        # actual timing comparison remains anchored to the Slide end so the
+        # absolute/hard/soft classes match the reference articles.
+        terminal_ratio = min(0.50, max(0.05, terminal_length / path_length))
+        terminal_start = slide_end - float(slide.duration) * terminal_ratio
         for target_index, target in targets_by_area.get(area, ()):
             if target_index == slide_index:
                 continue
-            delta = float(target.time) - passed_time
+            delta = float(target.time) - slide_end
             if not -0.05 <= delta <= 0.20:
+                continue
+            if float(target.time) < terminal_start - 1e-6:
                 continue
             # A negative overlap with an ordinary Hold head is regular simai
             # grammar, not a tail collision.  Ex targets remain audit-only.
             if target.kind == "hold" and delta < 0.0:
                 continue
             candidate_id = f"s{slide_index}:p{len(path) - 1}:t{target_index}"
-            candidate = {"candidate_id": candidate_id}
+            timing_class = "absolute" if abs(delta) < 1e-6 else "hard" if 0.0 < delta <= 0.15 else "soft"
+            candidate = {
+                "candidate_id": candidate_id,
+                "slide_event_index": slide_index,
+                "target_event_index": target_index,
+                "delta": _round(delta),
+                "timing_class": timing_class,
+            }
             if include_details:
                 candidate.update({
-                    "slide_event_index": slide_index,
-                    "target_event_index": target_index,
                     "slide_raw": slide.raw,
                     "target_raw": target.raw,
                     "slide_start": _round(slide.time),
                     "slide_duration": _round(slide.duration),
                     "slide_path": list(path),
-                    "passed_time": _round(passed_time),
+                    "terminal_start": _round(terminal_start),
+                    "terminal_ratio": _round(terminal_ratio),
                     "slide_end": _round(slide_end),
                     "target_time": _round(target.time),
                     "target_kind": target.kind,
                     "area": area,
-                    "delta": _round(delta),
                     "target_is_ex": bool(target.is_ex),
-                    "timing_class": "absolute" if abs(delta) < 1e-6 else "hard" if delta <= 0.15 else "soft",
-                    "rule": "Slide末端路径区，目标进入时间差[-0.05s,+0.20s]",
+                    "rule": "Slide末端路径区，目标相对Slide结束时间[-0.05s,+0.20s]",
                 })
             if target.is_ex:
                 if include_details:
@@ -208,14 +225,25 @@ def _slide_collision_candidates(
 
 
 def _review_collision(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    # The XLS explicitly removes a collision-count threshold.  Every
-    # non-Ex terminal-path candidate that survives the timing window is kept.
-    return list(candidates)
+    # A single absolute/hard collision is sufficient. Soft boundaries need
+    # repetition across distinct Slide events, as required by the XLS.
+    accepted: list[dict[str, Any]] = []
+    soft: list[dict[str, Any]] = []
+    for candidate in candidates:
+        if candidate.get("timing_class") in {"absolute", "hard"}:
+            accepted.append(candidate)
+        else:
+            soft.append(candidate)
+    distinct_soft_slides = {candidate.get("slide_event_index") for candidate in soft}
+    if len(distinct_soft_slides) >= 2:
+        accepted.extend(soft)
+    return accepted
 
 
 def build_chart_audit_payload(path: Path, chart: MaidataChart, analysis: dict[str, Any] | None = None) -> dict[str, Any]:
     analysis = analysis or analyze_chart_tags(chart)
     candidates, excluded_ex = _slide_collision_candidates(chart)
+    accepted = _review_collision(candidates)
     return {
         "source_file": path.name,
         "source_path": _relative_path(path),
@@ -227,12 +255,16 @@ def build_chart_audit_payload(path: Path, chart: MaidataChart, analysis: dict[st
         "features": {key: _round(value, 6) for key, value in (analysis.get("features") or {}).items() if isinstance(value, (int, float))},
         "two_measure_windows": _window_payload(chart, analysis=analysis),
         "collision_candidate_count": len(candidates),
+        "collision_accepted_count": len(accepted),
         "collision_candidates": candidates,
+        "collision_accepted": accepted,
         "collision_exclusions": excluded_ex,
         "collision_rule": {
             "pre_entry_seconds": -0.05,
             "post_entry_seconds": 0.20,
-            "no_count_threshold": True,
+            "hard_post_entry_seconds": 0.15,
+            "soft_requires_distinct_slides": True,
+            "terminal_path_zone_estimated": True,
             "last_area_only": True,
             "ex_target_excluded": True,
         },
@@ -252,7 +284,7 @@ def collect_eligible_chart_refs(
             continue
         try:
             raw = path.read_bytes()
-            song = parse_maidata(raw.decode("utf-8-sig"))
+            song = parse_maidata_metadata(raw.decode("utf-8-sig"))
         except Exception:
             continue
         if not song.short_id or not song.title:
@@ -326,7 +358,10 @@ def _apply_difficulty_caps(records: list[dict[str, Any]]) -> None:
     """Apply the XLS same-constant prevalence ceilings to final labels."""
     for record in records:
         scores = record.get("candidate_scores") if isinstance(record.get("candidate_scores"), dict) else {}
-        difficulty = filter_allowed_tags(record.get("difficulty_tags") or [])
+        training_tags = record.get("training_tags")
+        if not isinstance(training_tags, list):
+            training_tags = record.get("difficulty_tags") or []
+        difficulty = filter_allowed_tags(training_tags)
         selected, selected_scores = select_final_tags({tag: scores.get(tag, tag_weight(tag)) for tag in difficulty})
         record["pre_final_tags"] = selected
         record["pre_final_scores"] = selected_scores
@@ -363,6 +398,10 @@ def _apply_difficulty_caps(records: list[dict[str, Any]]) -> None:
             for tag in record["final_tags"]
         }
         evidence = record.get("tag_evidence") if isinstance(record.get("tag_evidence"), dict) else {}
+        training_tags = filter_allowed_tags(record.get("training_tags") or [])
+        record["training_tag_positions"] = {
+            tag: evidence.get(tag, []) for tag in training_tags
+        }
         record["tag_positions"] = {tag: evidence.get(tag, []) for tag in record["final_tags"]}
         record["summary"] = _record_summary(record)
     for record in records:
@@ -382,8 +421,33 @@ def _make_record(ref: dict[str, Any], raw: str, chart: MaidataChart) -> dict[str
     analysis = analyze_chart_tags(chart)
     payload = build_chart_audit_payload(Path(ref["path"]), chart, analysis)
     candidates = payload["collision_candidates"]
+    accepted = payload["collision_accepted"]
     excluded_ex = payload["collision_exclusions"]
-    accepted_ids = [item["candidate_id"] for item in candidates]
+    accepted_ids = [item["candidate_id"] for item in accepted]
+    raw_tags = filter_allowed_tags(analysis.get("raw_tags") or [])
+    difficulty_tags = filter_allowed_tags(analysis.get("difficulty_tags") or [])
+    candidate_scores = dict(analysis.get("candidate_scores") or {})
+    tag_evidence = dict(analysis.get("tag_evidence") or {})
+    if accepted:
+        raw_tags = filter_allowed_tags([*raw_tags, "撞尾"])
+        difficulty_tags = filter_allowed_tags([*difficulty_tags, "撞尾"])
+        candidate_scores["撞尾"] = max(float(candidate_scores.get("撞尾", 0.0) or 0.0), 1.0)
+        tag_evidence["撞尾"] = [
+            {
+                "kind": "slide_collision",
+                "event_indexes": [item.get("slide_event_index"), item.get("target_event_index")],
+                "raw": f"{item.get('slide_raw', '')} -> {item.get('target_raw', '')}",
+                "position": {
+                    "slide_time": item.get("slide_start"),
+                    "terminal_start": item.get("terminal_start"),
+                    "target_time": item.get("target_time"),
+                    "delta": item.get("delta"),
+                    "timing_class": item.get("timing_class"),
+                },
+                "reason": "通过绝对/硬撞尾或多个不同 Slide 的软撞尾复核",
+            }
+            for item in accepted[:3]
+        ]
     return {
         "record_version": 4,
         "record_key": ref["key"],
@@ -419,10 +483,11 @@ def _make_record(ref: dict[str, Any], raw: str, chart: MaidataChart) -> dict[str
             "excluded_ex": excluded_ex,
             "accepted_candidate_ids": accepted_ids,
         },
-        "raw_tags": filter_allowed_tags(analysis.get("raw_tags") or []),
-        "difficulty_tags": filter_allowed_tags(analysis.get("difficulty_tags") or []),
-        "candidate_scores": analysis.get("candidate_scores") or {},
-        "tag_evidence": analysis.get("tag_evidence") or {},
+        "raw_tags": raw_tags,
+        "difficulty_tags": difficulty_tags,
+        "candidate_scores": candidate_scores,
+        "tag_evidence": tag_evidence,
+        "training_tag_positions": {},
         "tag_positions": {},
         "final_tags": [],
         "tag_scores": {},

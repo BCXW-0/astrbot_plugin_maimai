@@ -5,6 +5,12 @@ import unittest
 from pathlib import Path
 
 from astrbot_plugin_maimaidx.libraries.chart_tags.auto_tagger import LocalChartCatalog
+from astrbot_plugin_maimaidx.libraries.chart_tags.training_dataset import (
+    _assert_model_quality,
+    _supervision_matrix,
+    _target_matrix,
+)
+from astrbot_plugin_maimaidx.libraries.chart_tags.constants import ALLOWED_TAGS
 from astrbot_plugin_maimaidx.libraries.chart_tags.local.maidata_parser import (
     MaidataChart,
     NoteEvent,
@@ -17,6 +23,29 @@ from astrbot_plugin_maimaidx.libraries.chart_tags.local.structure_tagger import 
 
 
 class ChartTagOptimizationTest(unittest.TestCase):
+    def test_training_targets_are_not_display_capped(self) -> None:
+        records = [{"training_tags": ["双押"], "final_tags": []}]
+        targets = _target_matrix(records)
+        self.assertEqual(float(targets[0, ALLOWED_TAGS.index("双押")]), 1.0)
+
+    def test_conflicting_external_tag_is_not_a_strong_negative(self) -> None:
+        records = [{
+            "training_tags": ["双押"],
+            "validation": {"confidence": 0.0},
+            "external_tags": ["管子"],
+            "validated_tags": [],
+        }]
+        weights = _supervision_matrix(records)
+        self.assertLess(float(weights[0, ALLOWED_TAGS.index("管子")]), 1.0)
+        self.assertGreater(float(weights[0, ALLOWED_TAGS.index("双押")]), 0.0)
+
+    def test_quality_gate_rejects_zero_prediction_model(self) -> None:
+        with self.assertRaises(ValueError):
+            _assert_model_quality(
+                {"micro_precision": 0.0},
+                {"micro_precision": 0.0, "micro_f1": 0.0, "predicted_positive_cells": 0},
+            )
+
     def test_feature_bundle_matches_public_feature_output(self) -> None:
         chart = MaidataChart(
             diff_id=4,
